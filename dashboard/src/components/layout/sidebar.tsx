@@ -19,6 +19,7 @@ const navSections = [
     items: [
       { name: 'Scripts', href: '/scripts', icon: 'description' },
       { name: 'Chamadas', href: '/calls', icon: 'call' },
+      { name: 'Ao Vivo', href: '/live', icon: 'cell_tower' },
       { name: 'Analytics', href: '/analytics', icon: 'bar_chart' },
       { name: 'Equipe', href: '/team', icon: 'people' },
     ],
@@ -73,8 +74,8 @@ export function Sidebar() {
           // Filter items based on role
           const filteredItems = section.items.filter(item => {
             if (role === 'SELLER') {
-              // Sellers cannot see Scripts or Team
-              if (['Scripts', 'Equipe'].includes(item.name)) return false;
+              // Sellers cannot see Scripts, Team, or Live View
+              if (['Scripts', 'Equipe', 'Ao Vivo'].includes(item.name)) return false;
             }
             return true;
           });

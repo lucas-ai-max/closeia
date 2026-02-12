@@ -1,14 +1,45 @@
 import { DashboardHeader } from '@/components/layout/dashboard-header'
+import { ObjectionAnalytics } from '@/components/analytics/objection-analytics'
+import { SellerDashboard } from '@/components/analytics/seller-dashboard'
+import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 
 export default function AnalyticsPage() {
+  const [role, setRole] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function getRole() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) setRole((profile as any).role)
+      }
+      setLoading(false)
+    }
+    getRole()
+  }, [])
+
+  if (loading) return <div className="p-8">Carregando analytics...</div>
+
   return (
     <>
       <DashboardHeader title="Analytics" />
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center bg-white dark:bg-slate-900 rounded-3xl shadow-sm p-8">
-        <h2 className="text-2xl font-bold">Analytics Avançado</h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-2">
-          Funcionalidade em desenvolvimento.
-        </p>
+      <div className="space-y-6">
+        {role === 'SELLER' ? (
+          <SellerDashboard stats={{}} />
+        ) : (
+          <div className="grid gap-4">
+            <ObjectionAnalytics />
+            {/* Future: Add more manager analytics here */}
+          </div>
+        )}
       </div>
     </>
   )
