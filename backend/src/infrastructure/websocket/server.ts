@@ -154,7 +154,8 @@ const coachEngine = new CoachEngine(
     objectionMatcher,
     new PromptBuilder(),
     openaiClient,
-    new ResponseParser()
+    new ResponseParser(),
+    successTracker // Injected
 );
 const postCallAnalyzer = new PostCallAnalyzer(openaiClient);
 const whisperClient = new WhisperClient();
@@ -274,10 +275,10 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
             logger.info({ organizationId: profile.organization_id }, '✅ Profile found');
 
-            const { data: call, error: callError } = await supabaseAdmin.from('calls')
+            const { data: call, error: insertError } = await supabaseAdmin.from('calls')
                 .insert({
                     user_id: userId,
-                    organization_id: profile.organization_id, // Might be null if profile has no org
+                    organization_id: profile.organization_id,
                     script_id: scriptId,
                     platform: platform || 'OTHER',
                     status: 'ACTIVE',
@@ -285,8 +286,16 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 })
                 .select().single();
 
-            if (callError) {
-                logger.error({ callError }, '❌ Failed to create call in DB');
+            if (insertError) {
+                logger.error({ insertError }, '❌ ERRO AO CRIAR CHAMADA NO DB:');
+                // Enviar erro de volta para a extensão para sabermos o que houve
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    payload: {
+                        message: 'Failed to create call in DB',
+                        details: insertError
+                    }
+                }));
                 return;
             }
 

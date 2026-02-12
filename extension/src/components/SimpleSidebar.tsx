@@ -28,6 +28,7 @@ export default function SimpleSidebar() {
     // Recording state
     const [transcripts, setTranscripts] = useState<any[]>([]);
     const [coachSuggestion, setCoachSuggestion] = useState('Aguardando transcrição...');
+    const [managerWhisper, setManagerWhisper] = useState<{ content: string; urgency: string; timestamp: number } | null>(null);
     const [leadTemp, setLeadTemp] = useState<'hot' | 'warm' | 'cold'>('warm');
     const [isRecording, setIsRecording] = useState(false);
     const [micAvailable, setMicAvailable] = useState<boolean | null>(null);
@@ -170,6 +171,21 @@ export default function SimpleSidebar() {
                     setMicAvailable(msg.micAvailable);
                 }
                 if (msg.status !== 'RECORDING') setMicAvailable(null);
+            } else if (msg.type === 'MANAGER_WHISPER') {
+                // Handle new whisper
+                setManagerWhisper({
+                    content: msg.data.content,
+                    urgency: msg.data.urgency,
+                    timestamp: msg.data.timestamp
+                });
+            } else if (msg.type === 'COACHING_MESSAGE') {
+                // Handle AI coaching from backend
+                const { content, isTopRecommendation } = msg.data;
+                const prefix = isTopRecommendation ? '🏆 ' : '';
+                setCoachSuggestion(prefix + content);
+
+                // Update temp based on urgency or type if needed
+                if (msg.data.urgency === 'high') setLeadTemp('hot');
             }
         };
         chrome.runtime.onMessage.addListener(listener);
@@ -414,10 +430,57 @@ export default function SimpleSidebar() {
                 )}
             </div>
 
+            {/* MANAGER WHISPER AREA */}
+            {managerWhisper && (
+                <div style={{
+                    padding: '16px',
+                    backgroundColor: 'rgba(234, 179, 8, 0.1)', // Yellow tint
+                    borderBottom: '1px solid #eab308',
+                    borderTop: '1px solid #eab308'
+                }}>
+                    <div style={{
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        marginBottom: '8px',
+                        color: '#eab308', // Gold
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                    }}>
+                        <span>👑 Dica do Gestor</span>
+                        <button
+                            onClick={() => setManagerWhisper(null)}
+                            style={{ background: 'none', border: 'none', color: '#eab308', cursor: 'pointer', fontSize: '14px' }}
+                        >
+                            ✕
+                        </button>
+                    </div>
+                    <div style={{ fontSize: '15px', fontWeight: '500', lineHeight: '1.5', color: '#fef08a' }}>
+                        {managerWhisper.content}
+                    </div>
+                </div>
+            )}
+
             {/* Coach Suggestion */}
-            <div style={{ padding: '16px', borderBottom: '1px solid #334155' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    💡 Sugestão do Coach
+            <div style={{
+                padding: '16px',
+                borderBottom: '1px solid #334155',
+                background: coachSuggestion.includes('🏆') ? 'linear-gradient(to right, rgba(234, 179, 8, 0.1), transparent)' : 'transparent'
+            }}>
+                <div style={{
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    marginBottom: '8px',
+                    color: coachSuggestion.includes('🏆') ? '#fbbf24' : '#94a3b8',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                }}>
+                    {coachSuggestion.includes('🏆') ? '🏆 Melhor Recomendação' : '💡 Sugestão do Coach'}
                 </div>
                 <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#e2e8f0' }}>
                     {coachSuggestion}

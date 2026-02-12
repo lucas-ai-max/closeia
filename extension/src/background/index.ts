@@ -328,7 +328,7 @@ async function startCapture() {
                 const timeout = setTimeout(() => {
                     chrome.runtime.onMessage.removeListener(listener);
                     reject(new Error('Timeout waiting for OFFSCREEN_READY'));
-                }, 5000);
+                }, 10000);
 
                 const listener = (msg: any) => {
                     if (msg.type === 'OFFSCREEN_READY') {

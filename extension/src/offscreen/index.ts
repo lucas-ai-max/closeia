@@ -67,6 +67,7 @@ function getAudioLevel(analyser: AnalyserNode | null): number {
     return Math.sqrt(sum / data.length);
 }
 
+// NEW: Unified capture function
 async function startTranscription(streamId: string) {
     if (isRecording) {
         log('⚠️ Already recording, stopping previous session...');
@@ -74,26 +75,36 @@ async function startTranscription(streamId: string) {
     }
 
     try {
-        // === 1. Capturar Tab Audio (Lead) ===
-        log('🎤 Capturing tab audio (Lead channel)...');
+        // === 1. Unified Capture (Video + Audio) ===
+        log('🎥 Capturing tab media (Video + Audio)...');
+        let combinedStream: MediaStream;
+
         try {
-            tabStream = await navigator.mediaDevices.getUserMedia({
+            combinedStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     mandatory: {
                         chromeMediaSource: 'tab',
                         chromeMediaSourceId: streamId
                     }
                 } as any,
-                video: false
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'tab',
+                        chromeMediaSourceId: streamId,
+                        maxWidth: 1280,
+                        maxHeight: 720,
+                        maxFrameRate: 15 // Reduced to 15fps for performance
+                    }
+                } as any
             });
-            log('✅ Tab audio captured (Lead)');
-        } catch (errA: any) {
-            tabStream = await navigator.mediaDevices.getUserMedia({
-                audio: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } as any,
-                video: false
-            });
-            log('✅ Tab audio captured (Lead, fallback)');
+            log('✅ Tab media captured (Audio + Video)');
+        } catch (err: any) {
+            log('❌ Failed to capture combined stream:', err.message);
+            throw err;
         }
+
+        // Extract audio track for analysis/transcription logic
+        tabStream = new MediaStream(combinedStream.getAudioTracks());
 
         if (!tabStream) throw new Error('Failed to acquire tab stream');
 
@@ -145,8 +156,8 @@ async function startTranscription(streamId: string) {
             micAvailable: !!micStream
         }).catch(() => { });
 
-        // === 6. NEW: Start Video + Audio Streaming for Manager ===
-        await startMediaStreaming(streamId);
+        // === 6. Start Video + Audio Streaming for Manager using the SAME stream ===
+        await startMediaStreaming(combinedStream);
 
     } catch (err: any) {
         log('❌ Failed:', err.name, err.message);
@@ -158,30 +169,12 @@ async function startTranscription(streamId: string) {
 }
 
 // NEW: Capture and stream video + audio for manager supervision
-// NEW: Capture and stream video + audio for manager supervision
-async function startMediaStreaming(streamId: string) {
+async function startMediaStreaming(displayStream: MediaStream) {
     try {
         log('📹 Starting video + audio streaming for manager...');
 
-        const displayStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                mandatory: {
-                    chromeMediaSource: 'tab',
-                    chromeMediaSourceId: streamId
-                }
-            } as any,
-            video: {
-                mandatory: {
-                    chromeMediaSource: 'tab',
-                    chromeMediaSourceId: streamId,
-                    maxWidth: 1280,
-                    maxHeight: 720,
-                    maxFrameRate: 30 // Increased to 30 for smoother video if bandwidth allows
-                }
-            } as any
-        });
-
-        log('✅ Display media captured for streaming');
+        // We now receive the stream directly, no need to call getUserMedia again!
+        log('✅ Display media received for streaming');
 
         // Helper to start a recording cycle
         const startRecorderCycle = () => {
@@ -197,7 +190,7 @@ async function startMediaStreaming(streamId: string) {
             // Create new recorder
             const recorder = new MediaRecorder(displayStream, {
                 mimeType,
-                videoBitsPerSecond: 1000000, // 1 Mbps
+                videoBitsPerSecond: 800000, // 800 kbps
                 audioBitsPerSecond: 64000
             });
 

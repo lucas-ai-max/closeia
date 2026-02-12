@@ -36,6 +36,57 @@ export async function routes(fastify: FastifyInstance) {
             return { message: 'Call ended processing started' };
         });
 
+        // POST /api/calls/:id/outcome
+        protectedRoutes.post('/calls/:id/outcome', async (request: any, reply) => {
+            const { id } = request.params as { id: string };
+            const { outcome } = request.body as { outcome: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' };
+            const { organization_id } = request.user;
+
+            // 1. Update Call Summary
+            const { data: summary, error } = await supabaseAdmin
+                .from('call_summaries')
+                .update({ result: outcome })
+                .eq('call_id', id)
+                .select()
+                .single();
+
+            if (error) return reply.code(500).send({ error: 'Failed to update outcome' });
+
+            // 2. Trigger Learning Loop
+            // Fetch necessary data to track objection success
+            const { data: call } = await supabaseAdmin
+                .from('calls')
+                .select('script_id')
+                .eq('id', id)
+                .single();
+
+            if (call && call.script_id) {
+                // We need to know which objections were faced. 
+                // Assuming 'objections_faced' is stored in call_summaries as JSON array of objection IDs or strings
+                // For this implementation, we'll try to use what's in summary.objections_faced
+                // If it stores IDs, we are good.
+
+                const objectionIds = summary.objections_faced || [];
+                // Ensure they are strings
+                if (Array.isArray(objectionIds) && objectionIds.length > 0) {
+                    // Instantiate tracker logic (could be separate service, but reusing logic here or importing the service)
+                    // Ideally we import the singleton 'successTracker' but it's in websocket/server.ts
+                    // Let's create a new instance for HTTP context or move instantiation to a shared container
+                    // For now: NEW instance
+                    const { ObjectionSuccessTracker } = await import('../../../infrastructure/ai/objection-success-tracker.js');
+                    const tracker = new ObjectionSuccessTracker(supabaseAdmin);
+
+                    await tracker.trackCallResult(
+                        call.script_id,
+                        objectionIds,
+                        outcome === 'CONVERTED'
+                    );
+                }
+            }
+
+            return { success: true };
+        });
+
         // SCRIPT ROUTES
         // GET /api/scripts/:id/objections - Fetch objections with success rates for edge caching
         protectedRoutes.get('/scripts/:id/objections', async (request: any, reply) => {

@@ -16,9 +16,12 @@ interface Call {
     platform: string;
     started_at: string;
     ended_at?: string;
-    profiles?: {
+    user?: {
         name: string;
         email: string;
+    };
+    script?: {
+        name: string;
     };
 }
 
@@ -60,16 +63,9 @@ export default function CallsPage() {
         const { data, error } = await supabase
             .from('calls')
             .select(`
-                id,
-                user_id,
-                status,
-                platform,
-                started_at,
-                ended_at,
-                profiles:user_id (
-                    name,
-                    email
-                )
+                *,
+                user:profiles!user_id(name),
+                script:scripts!calls_script_relationship(name)
             `)
             .eq('status', 'ACTIVE')
             .order('started_at', { ascending: false });
@@ -80,8 +76,8 @@ export default function CallsPage() {
             console.log('Active calls found:', data);
             setCalls(data as any);
         } else if (error) {
-        } else if (error) {
             console.error('❌ Error fetching calls object:', error);
+            console.error('❌ Error details (JSON):', JSON.stringify(error, null, 2));
             console.error('❌ Error details:', {
                 message: error.message,
                 details: error.details,

@@ -4,6 +4,7 @@ import { PromptBuilder } from "./prompt-builder";
 import { OpenAIClient } from "./openai-client";
 import { ResponseParser, ParsedResponse } from "./response-parser";
 import { CallSession, TranscriptChunk } from "../websocket/server";
+import { ObjectionSuccessTracker } from "./objection-success-tracker";
 
 export interface CoachEvent {
     type: 'tip' | 'alert' | 'reinforcement' | 'objection' | 'buying_signal' | 'stage_change' | 'lead_profile';
@@ -16,6 +17,7 @@ export interface CoachEvent {
     progress?: number;
     signal?: string;
     suggestion?: string;
+    isTopRecommendation?: boolean; // NEW: Flag for high-success responses
 }
 
 export class CoachEngine {
@@ -24,31 +26,42 @@ export class CoachEngine {
         private objectionMatcher: ObjectionMatcher,
         private promptBuilder: PromptBuilder,
         private openaiClient: OpenAIClient,
-        private responseParser: ResponseParser
+        private responseParser: ResponseParser,
+        private successTracker: ObjectionSuccessTracker // NEW: Dependency
     ) { }
 
     async processTranscriptChunk(chunk: TranscriptChunk, session: CallSession & { lastCoachingAt?: number, silenceSince?: number, lastCoaching?: string, objectionsFaced?: string[] }): Promise<CoachEvent[]> {
         const events: CoachEvent[] = [];
 
         // 1. Checar cache de objeções (instantâneo)
-        // Note: In real app, we need to fetch objections list from somewhere (Redis or passed in session)
-        // For MVP we assume session has a loaded script/objections or we ignore it if not passed
-        // This example assumes we might load objections from DB or Cache, skipping implementations details for dependency injection complexity
-        const matchedObjection = this.objectionMatcher.match(chunk.text, []); // Passing empty for now as we don't have objections loaded in session yet
+        // In real usage, objections should be loaded from session or DB
+        const matchedObjection = this.objectionMatcher.match(chunk.text, []);
 
         if (matchedObjection && matchedObjection.score > 0.7) {
+            // Check success rate
+            let isTop = false;
+            try {
+                const rate = await this.successTracker.getSuccessRate(matchedObjection.id, session.scriptId);
+                // If success rate is > 40% (example threshold) or it is the best performing one
+                if (rate > 0.4) {
+                    isTop = true;
+                }
+            } catch (e) {
+                console.error("Error fetching success rate", e);
+            }
+
             events.push({
                 type: 'objection',
                 content: matchedObjection.coachingTip,
-                urgency: 'high',
+                urgency: isTop ? 'high' : 'medium', // Higher urgency for top tips
+                isTopRecommendation: isTop,
                 metadata: {
                     objection: matchedObjection.triggerPhrase,
                     mentalTrigger: matchedObjection.mentalTrigger,
-                    suggestedResponse: matchedObjection.suggestedResponse
+                    suggestedResponse: matchedObjection.suggestedResponse,
+                    successRate: isTop ? 'High' : 'Normal'
                 }
             });
-            // If objection matched strongly, we might skip LLM or force it.
-            // Let's continue to LLM only if trigger says so, but usually objection response is enough.
         }
 
         // 2. Checar triggers para LLM
@@ -56,13 +69,12 @@ export class CoachEngine {
         if (!trigger.shouldTrigger) return events;
 
         // 3. Construir prompt e chamar LLM
-        // Mocking script data for MVP as it's not fully in session yet
         const mockScript = {
             name: "Default Script",
             coach_personality: "Strategic",
             coach_tone: "Direct",
             intervention_level: "High",
-            steps: [] // Should be populated from DB
+            steps: []
         };
 
         const { system, user } = this.promptBuilder.build(session, trigger, mockScript as any);
@@ -86,17 +98,16 @@ export class CoachEngine {
                 events.push({
                     type: 'stage_change',
                     currentStep: parsed.currentStep,
-                    // stepName lookup would happen here
-                    progress: 0 // calc progress
+                    progress: 0
                 });
                 session.currentStep = parsed.currentStep;
             }
 
             if (parsed.coaching?.type === 'buying_signal') {
-                // Special handling if needed, or just let it pass as coaching event
+                // Special handling
             }
 
-            // 5. Update Session State (in memory, caller persists)
+            // 5. Update Session State
             if (parsed.nextStep) {
                 // session.nextStep = parsed.nextStep;
             }
@@ -105,10 +116,6 @@ export class CoachEngine {
                 // session.leadProfile = ...
             }
 
-            // Update local tracking
-            // Use mutable session object or return updates
-            // In this architecture, we return events and caller updates DB/Redis
-
         } catch (error) {
             console.error("Coach Engine Error", error);
         }
@@ -116,3 +123,4 @@ export class CoachEngine {
         return events;
     }
 }
+
