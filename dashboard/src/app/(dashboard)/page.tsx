@@ -232,9 +232,8 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-400" />
               <span className="text-xs font-bold">
-                <span className="text-xs font-bold">
-                  Mês anterior <span className="text-slate-400 font-normal">289</span>
-                </span>
+                Mês anterior <span className="text-slate-400 font-normal">289</span>
+              </span>
             </div>
           </div>
         </div>
