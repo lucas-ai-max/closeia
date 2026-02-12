@@ -147,8 +147,10 @@ function shouldDiscard(
 }
 
 // Initialize Services (Singleton pattern to avoid memory leaks)
+// Initialize Services (Singleton pattern to avoid memory leaks)
 const openaiClient = new OpenAIClient();
 const objectionMatcher = new ObjectionMatcher();
+const successTracker = new ObjectionSuccessTracker(supabaseAdmin); // Initialize first
 const coachEngine = new CoachEngine(
     new TriggerDetector(),
     objectionMatcher,
@@ -159,7 +161,6 @@ const coachEngine = new CoachEngine(
 );
 const postCallAnalyzer = new PostCallAnalyzer(openaiClient);
 const whisperClient = new WhisperClient();
-const successTracker = new ObjectionSuccessTracker(supabaseAdmin);
 
 export async function websocketRoutes(fastify: FastifyInstance) {
     fastify.get('/ws/call', { websocket: true }, async (socket, req) => {

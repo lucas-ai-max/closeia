@@ -84,18 +84,14 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-        return (
-        <>
-          <DashboardHeader title="Dashboard (Visão Gestor)" />
+      </section>
 
-          {/*... (existing hero section) ...*/}
+      <div className="mb-8">
+        <ObjectionAnalytics />
+      </div>
 
-          <div className="mb-8">
-            <ObjectionAnalytics />
-          </div>
-
-          {/* ... rest of existing dashboard ... */}
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold">Visão de Chamadas</h3>
             <button type="button" className="text-slate-400" aria-label="Mais">
@@ -242,6 +238,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+    </div >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between mb-8 relative z-10">
