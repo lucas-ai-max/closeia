@@ -371,8 +371,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             // 3. Send AI Events to Client
             for (const aiEvent of events) {
                 ws.send(JSON.stringify({
-                    type: 'COACHING_MESSAGE', // Mapping to what frontend expects
-                    payload: aiEvent // Frontend should handle this structure
+                    type: 'coach:message',
+                    payload: aiEvent
                 }));
 
                 // Update session based on event (e.g. lastCoachingAt)
@@ -600,7 +600,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             const coachEvents = await coachEngine.processTranscriptChunk(transcriptChunk, sessionData);
                             for (const aiEvent of coachEvents) {
                                 ws.send(JSON.stringify({
-                                    type: 'COACHING_MESSAGE',
+                                    type: 'coach:message',
                                     payload: aiEvent
                                 }));
                                 sessionData.lastCoachingAt = Date.now();

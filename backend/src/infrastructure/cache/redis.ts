@@ -103,43 +103,61 @@ class RedisClient {
     }
 
     // ========================================
-    // PUB/SUB METHODS FOR MANAGER WHISPER
+    // PUB/SUB METHODS (Redis + In-Memory Fallback)
     // ========================================
 
     private subscribers: Map<string, Redis> = new Map();
-    private subscriptionHandlers: Map<string, Set<(message: string) => void>> = new Map();
+    private subscriptionHandlers: Map<string, Set<(message: any) => void>> = new Map();
 
     /**
-     * Publishes a message to a Redis channel
-     * Used for broadcasting transcripts and commands
+     * Publishes a message to a channel.
+     * Works with both Redis and in-memory mode.
      */
     async publish(channel: string, message: any): Promise<void> {
         if (this.useMemory || !this.client) {
-            logger.warn('⚠️ Pub/Sub not available in memory mode');
+            // In-memory pub/sub: call handlers directly
+            const handlers = this.subscriptionHandlers.get(channel);
+            if (handlers && handlers.size > 0) {
+                handlers.forEach(h => {
+                    try { h(message); } catch (e) { /* ignore handler errors */ }
+                });
+            }
             return;
         }
 
         try {
             const serialized = JSON.stringify(message);
             await this.client.publish(channel, serialized);
-            logger.info(`📡 Published to ${channel}`);
         } catch (error) {
             logger.error({ error }, `Failed to publish to ${channel}`);
+            // Fallback: try in-memory delivery
+            const handlers = this.subscriptionHandlers.get(channel);
+            if (handlers) {
+                handlers.forEach(h => {
+                    try { h(message); } catch (e) { /* ignore */ }
+                });
+            }
         }
     }
 
     /**
-     * Subscribes to a Redis channel
-     * Creates a dedicated subscriber client for each unique channel
+     * Subscribes to a channel.
+     * Works with both Redis and in-memory mode.
      */
     async subscribe(channel: string, handler: (message: any) => void): Promise<void> {
+        // Always register the handler (needed for in-memory fallback)
+        if (!this.subscriptionHandlers.has(channel)) {
+            this.subscriptionHandlers.set(channel, new Set());
+        }
+        this.subscriptionHandlers.get(channel)!.add(handler);
+
         if (this.useMemory || !this.client) {
-            logger.warn('⚠️ Pub/Sub not available in memory mode');
+            logger.info(`✅ Subscribed to ${channel} (in-memory mode)`);
             return;
         }
 
         try {
-            // Create dedicated subscriber client if doesn't exist
+            // Create dedicated Redis subscriber client if doesn't exist
             if (!this.subscribers.has(channel)) {
                 const subscriberClient = new Redis(env.REDIS_URL);
 
@@ -159,16 +177,11 @@ class RedisClient {
 
                 await subscriberClient.subscribe(channel);
                 this.subscribers.set(channel, subscriberClient);
-                this.subscriptionHandlers.set(channel, new Set());
 
-                logger.info(`✅ Subscribed to ${channel}`);
+                logger.info(`✅ Subscribed to ${channel} (Redis)`);
             }
-
-            // Add handler to set
-            const handlers = this.subscriptionHandlers.get(channel)!;
-            handlers.add(handler);
         } catch (error) {
-            logger.error({ error }, `Failed to subscribe to ${channel}`);
+            logger.error({ error }, `Failed to subscribe to ${channel} via Redis, using in-memory fallback`);
         }
     }
 
@@ -187,9 +200,9 @@ class RedisClient {
                     await subscriber.unsubscribe(channel);
                     subscriber.disconnect();
                     this.subscribers.delete(channel);
-                    this.subscriptionHandlers.delete(channel);
-                    logger.info(`🔌 Unsubscribed from ${channel}`);
                 }
+                this.subscriptionHandlers.delete(channel);
+                logger.info(`🔌 Unsubscribed from ${channel}`);
             }
         }
     }
