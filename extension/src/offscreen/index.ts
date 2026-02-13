@@ -14,7 +14,7 @@ let isStreamingMedia = false; // NEW: Track if video streaming is active
 
 const RECORDING_INTERVAL_MS = 3000;
 const SILENCE_THRESHOLD_LEAD = 5;
-const SILENCE_THRESHOLD_SELLER = 15; // Maior para ignorar eco do lead no mic
+const SILENCE_THRESHOLD_SELLER = 8; // Maior para ignorar eco do lead no mic
 
 function log(...args: any[]) {
     console.log(...args);

@@ -101,7 +101,7 @@ export default function CallDetailsPage() {
                     .select(`
                         *,
                         user:profiles!user_id(name, email),
-                        script:scripts!calls_script_relationship(name),
+                        script:scripts!script_id(name),
                         summary:call_summaries(*)
                     `)
                     .eq('id', callId)

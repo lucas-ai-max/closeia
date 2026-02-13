@@ -95,7 +95,7 @@ export default function CallsPage() {
             .select(`
                 *,
                 user:profiles!user_id(name),
-                script:scripts!calls_script_relationship(name)
+                script:scripts!script_id(name)
             `)
             .eq('status', 'ACTIVE')
             .order('started_at', { ascending: false });

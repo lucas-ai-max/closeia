@@ -57,16 +57,20 @@ export default function LivePage() {
     }, []);
 
     const fetchActiveCalls = async () => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('calls')
             .select(`
                 *,
                 user:profiles!user_id(name, email),
-                script:scripts!calls_script_relationship(name)
+                script:scripts!script_id(name)
             `)
             .eq('status', 'ACTIVE')
             .order('started_at', { ascending: false });
 
+        if (error) {
+            console.error('Failed to fetch active calls:', error);
+            return;
+        }
         if (data) setActiveCalls(data as any);
     };
 
@@ -211,13 +215,13 @@ export default function LivePage() {
                                         </p>
                                     ) : (
                                         transcripts.map((msg, idx) => (
-                                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user'
+                                            <div key={idx} className={`flex ${msg.role === 'lead' ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'lead'
                                                         ? 'bg-blue-600 text-white rounded-tr-none'
                                                         : 'bg-white dark:bg-slate-800 border rounded-tl-none'
                                                     }`}>
                                                     <p className="font-bold text-[10px] opacity-70 mb-1 uppercase">
-                                                        {msg.role === 'user' ? 'Client' : 'Vendedor'}
+                                                        {msg.speaker || (msg.role === 'lead' ? 'Cliente' : 'Vendedor')}
                                                     </p>
                                                     {msg.text}
                                                 </div>
