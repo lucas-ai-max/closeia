@@ -105,58 +105,61 @@ export default function CallsPage() {
         }
     };
 
-    // Connect to manager WebSocket when call is selected
+    const [managerToken, setManagerToken] = useState<string>('');
+
+    // Fetch token for manager WebSocket
     useEffect(() => {
-        if (!selectedCall) return;
-
-        const connectWebSocket = async () => {
+        const fetchToken = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            const websocket = new WebSocket(
-                `ws://localhost:3001/ws/manager?token=${session.access_token}`
-            );
-
-            websocket.onopen = () => {
-                console.log('Manager WebSocket connected');
-                // Join the call
-                websocket.send(JSON.stringify({
-                    type: 'manager:join',
-                    payload: { callId: selectedCall.id }
-                }));
-            };
-
-            websocket.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-
-                if (message.type === 'transcript:stream') {
-                    setTranscripts(prev => [...prev, message.payload]);
-                }
-
-                if (message.type === 'manager:joined') {
-                    console.log('Joined call:', message.payload.callId);
-                }
-            };
-
-            websocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-
-            websocket.onclose = () => {
-                console.log('Manager WebSocket disconnected');
-            };
-
-            setWs(websocket);
-        };
-
-        connectWebSocket();
-
-        return () => {
-            if (ws) {
-                ws.close();
+            if (session?.access_token) {
+                setManagerToken(session.access_token);
             }
         };
-    }, [selectedCall]);
+        fetchToken();
+    }, []);
+
+    // Connect to manager WebSocket when call is selected
+    useEffect(() => {
+        if (!selectedCall || !managerToken) return;
+
+        const websocket = new WebSocket(
+            `ws://localhost:3001/ws/manager?token=${managerToken}`
+        );
+
+        websocket.onopen = () => {
+            console.log('Manager WebSocket connected');
+            websocket.send(JSON.stringify({
+                type: 'manager:join',
+                payload: { callId: selectedCall.id }
+            }));
+        };
+
+        websocket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+
+            if (message.type === 'transcript:stream') {
+                setTranscripts(prev => [...prev, message.payload]);
+            }
+
+            if (message.type === 'manager:joined') {
+                console.log('Joined call:', message.payload.callId);
+            }
+        };
+
+        websocket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        websocket.onclose = () => {
+            console.log('Manager WebSocket disconnected');
+        };
+
+        setWs(websocket);
+
+        return () => {
+            websocket.close();
+        };
+    }, [selectedCall, managerToken]);
 
     const sendWhisper = () => {
         if (!ws || !whisperMessage.trim()) return;
@@ -316,7 +319,7 @@ export default function CallsPage() {
                             <MediaStreamPlayer
                                 callId={selectedCall.id}
                                 wsUrl="ws://localhost:3001/ws/manager"
-                                token=""
+                                token={managerToken}
                             />
                         </div>
 

@@ -225,9 +225,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             if (event.payload.isHeader) {
                                 await redis.set(
                                     `call:${callId}:media_header`,
-                                    JSON.stringify(payload),
-                                    'EX',
-                                    14400 // 4 hours
+                                    payload,
+                                    14400 // 4 hours TTL
                                 );
                                 logger.info(`📼 Video Header cached for call ${callId}`);
                             }
@@ -586,6 +585,37 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
                     logger.info(`✨ [${speakerLabel}]: "${text}"`);
 
+                    // Store transcript chunk in session for post-call analysis
+                    const transcriptChunk: TranscriptChunk = {
+                        text,
+                        speaker: role as 'seller' | 'lead',
+                        timestamp: Date.now()
+                    };
+
+                    if (sessionData) {
+                        sessionData.transcript.push(transcriptChunk);
+
+                        // Trigger AI coaching engine
+                        try {
+                            const coachEvents = await coachEngine.processTranscriptChunk(transcriptChunk, sessionData);
+                            for (const aiEvent of coachEvents) {
+                                ws.send(JSON.stringify({
+                                    type: 'COACHING_MESSAGE',
+                                    payload: aiEvent
+                                }));
+                                sessionData.lastCoachingAt = Date.now();
+                                if (aiEvent.type === 'stage_change' && aiEvent.currentStep) {
+                                    sessionData.currentStep = aiEvent.currentStep;
+                                }
+                            }
+                        } catch (coachErr: any) {
+                            logger.error({ message: coachErr?.message }, 'Coaching engine error');
+                        }
+
+                        // Persist updated session
+                        await redis.set(`call:${callId}`, sessionData, 3600 * 4);
+                    }
+
                     // Publish transcript to Redis for manager monitoring
                     if (callId) {
                         await redis.publish(`call:${callId}:stream`, {
@@ -695,7 +725,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             logger.info(`📼 Sending cached media header to manager for call ${callId}`);
                             socket.send(JSON.stringify({
                                 type: 'media:chunk',
-                                payload: JSON.parse(cachedHeader)
+                                payload: cachedHeader
                             }));
                         } else {
                             logger.warn(`⚠️ No media header cached for call ${callId}`);

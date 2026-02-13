@@ -92,6 +92,7 @@ create table call_summaries (
   buying_signals text[],
   lead_sentiment text,
   result text,
+  next_steps text[],
   ai_notes text,
   created_at timestamptz default now()
 );

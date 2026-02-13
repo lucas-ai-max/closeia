@@ -251,11 +251,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     } else if (message.type === 'MEDIA_STREAM_CHUNK') {
         // NEW: Relay video + audio chunks to backend for manager streaming
-        console.log(`📹 Sending media chunk: ${message.size} bytes`);
+        console.log(`📹 Sending media chunk: ${message.size} bytes, isHeader: ${!!message.isHeader}`);
         send('media:stream', {
             chunk: message.data,
             size: message.size,
-            timestamp: message.timestamp
+            timestamp: message.timestamp,
+            isHeader: !!message.isHeader
         });
     } else if (message.type === 'PARTICIPANT_INFO') {
         currentLeadName = message.leadName || '';
