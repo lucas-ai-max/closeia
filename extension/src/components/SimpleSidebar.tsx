@@ -183,13 +183,22 @@ export default function SimpleSidebar() {
                     timestamp: msg.data.timestamp
                 });
             } else if (msg.type === 'COACHING_MESSAGE') {
-                // Handle AI coaching from backend
-                const { content, isTopRecommendation } = msg.data;
-                const prefix = isTopRecommendation ? '🏆 ' : '';
-                setCoachSuggestion(prefix + content);
+                const event = msg.data;
+                if (!event) return;
 
-                // Update temp based on urgency or type if needed
-                if (msg.data.urgency === 'high') setLeadTemp('hot');
+                // Edge coaching format: { type, title, description, metadata }
+                if (event.title && event.description) {
+                    setCoachSuggestion(`${event.title}: ${event.description}`);
+                    if (event.type === 'objection') setLeadTemp('hot');
+                    return;
+                }
+
+                // Backend coaching format: { type, content, urgency, isTopRecommendation }
+                if (event.content) {
+                    const prefix = event.isTopRecommendation ? '🏆 ' : '';
+                    setCoachSuggestion(prefix + event.content);
+                    if (event.urgency === 'high') setLeadTemp('hot');
+                }
             }
         };
         chrome.runtime.onMessage.addListener(listener);

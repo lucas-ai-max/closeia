@@ -129,7 +129,7 @@ onWsMessage(async (data: any) => {
 
     // Handle coaching messages from backend (fallback or non-objection coaching)
     if (data.type === 'coach:message') {
-        console.log('📡 BACKEND COACHING:', data.payload?.message?.substring(0, 50));
+        console.log('📡 BACKEND COACHING:', data.payload?.content?.substring(0, 50));
         const state = await getState();
         if (state.currentTabId) {
             chrome.tabs.sendMessage(state.currentTabId, {

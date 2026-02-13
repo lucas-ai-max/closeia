@@ -14,7 +14,7 @@ let isStreamingMedia = false; // NEW: Track if video streaming is active
 
 const RECORDING_INTERVAL_MS = 3000;
 const SILENCE_THRESHOLD_LEAD = 5;
-const SILENCE_THRESHOLD_SELLER = 8; // Maior para ignorar eco do lead no mic
+const SILENCE_THRESHOLD_SELLER = 6; // Maior para ignorar eco do lead no mic
 
 function log(...args: any[]) {
     console.log(...args);
@@ -170,21 +170,22 @@ async function startTranscription(streamId: string) {
 
 // NEW: Capture and stream video + audio for manager supervision
 async function startMediaStreaming(displayStream: MediaStream) {
+    if (isStreamingMedia) {
+        log('⚠️ Media streaming already active, skipping duplicate start');
+        return;
+    }
     try {
         log('📹 Starting video + audio streaming for manager...');
-
-        // We now receive the stream directly, no need to call getUserMedia again!
-        log('✅ Display media received for streaming');
 
         // Helper to start a recording cycle
         const startRecorderCycle = () => {
             if (!isStreamingMedia) return;
 
             // Determine supported mime type (doing this inside to be safe/consistent)
-            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-                ? 'video/webm;codecs=vp9,opus'
-                : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-                    ? 'video/webm;codecs=vp8,opus'
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs="vp9,opus"')
+                ? 'video/webm;codecs="vp9,opus"'
+                : MediaRecorder.isTypeSupported('video/webm;codecs="vp8,opus"')
+                    ? 'video/webm;codecs="vp8,opus"'
                     : 'video/webm';
 
             // Create new recorder
