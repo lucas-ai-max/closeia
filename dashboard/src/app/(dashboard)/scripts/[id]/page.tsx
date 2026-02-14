@@ -74,9 +74,36 @@ export default function ScriptEditorPage() {
             const profile = profileData as { organization_id: string | null } | null
 
             if (!profile?.organization_id && isNew) {
-                // For dev: auto-create org if missing or handle error
-                // ignoring for now, assuming organization_id exists or we'll mock it
-                throw new Error('Organization not found')
+                // Fallback: try to find any organization this user belongs to
+                const { data: memberOrg } = await supabase
+                    .from('organization_members')
+                    .select('organization_id')
+                    .eq('user_id', user.id)
+                    .single()
+
+                if (memberOrg?.organization_id) {
+                    // Update profile to fix this for next time
+                    await supabase.from('profiles').update({ organization_id: memberOrg.organization_id }).eq('id', user.id)
+                    return createScript(supabase, { ...values, organization_id: memberOrg.organization_id })
+                }
+
+                // If still no org, create a default one (Personal user flow)
+                console.warn('⚠️ No organization found. Creating default...')
+                const { data: newOrg } = await supabase
+                    .from('organizations')
+                    .insert({ name: 'Minha Organização' })
+                    .select()
+                    .single()
+
+                if (newOrg) {
+                    await supabase.from('organization_members').insert({
+                        organization_id: newOrg.id, user_id: user.id, role: 'owner'
+                    })
+                    await supabase.from('profiles').update({ organization_id: newOrg.id }).eq('id', user.id)
+                    return createScript(supabase, { ...values, organization_id: newOrg.id })
+                }
+
+                throw new Error('Organization not found and could not be created')
             }
 
             if (isNew) {

@@ -41,9 +41,15 @@ export async function connect() {
             reconnectAttempts = 0; // Reset counter on success
 
             // Flush queue
+            console.log(`🚀 Flushing ${messageQueue.length} messages from queue...`);
             while (messageQueue.length > 0) {
                 const msg = messageQueue.shift()!;
-                ws!.send(msg);
+                try {
+                    ws!.send(msg);
+                    console.log('📤 Flushed message:', JSON.parse(msg).type);
+                } catch (e) {
+                    console.error('❌ Failed to flush message:', e);
+                }
             }
 
             // Notify background
@@ -100,11 +106,17 @@ export async function connect() {
 
 export function send(type: string, payload: any) {
     const message = JSON.stringify({ type, payload });
+    // Check if ws exists and is OPEN (1)
     if (ws && ws.readyState === WebSocket.OPEN) {
-        // console.log(`📤 WS Send immediately: ${type}`, payload); 
-        ws.send(message);
+        try {
+            ws.send(message);
+        } catch (err) {
+            console.error(`❌ WS Send failed for ${type}:`, err);
+            // Push to queue as fallback if send fails
+            messageQueue.push(message);
+        }
     } else {
-        console.log(`⏳ WS queuing message: ${type}`, payload);
+        console.log(`⏳ WS queuing message: ${type} (State: ${ws ? ws.readyState : 'null'})`, payload);
         messageQueue.push(message);
     }
 }

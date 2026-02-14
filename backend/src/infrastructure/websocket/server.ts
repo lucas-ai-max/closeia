@@ -3,6 +3,18 @@ import { supabaseAdmin } from '../../infrastructure/supabase/client.js';
 import { redis } from '../../infrastructure/cache/redis.js';
 import { logger } from '../../shared/utils/logger.js';
 import { WebSocket } from 'ws';
+import fs from 'fs';
+import path from 'path';
+
+// DEBUG LOGGING
+const LOG_FILE = path.join(process.cwd(), 'backend-websocket-debug.log');
+function debugLog(msg: string) {
+    try {
+        fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`);
+    } catch (e) {
+        console.error('Failed to write to log file', e);
+    }
+}
 
 // AI Imports
 import { CoachEngine } from '../ai/coach-engine.js';
@@ -147,18 +159,20 @@ function shouldDiscard(
 }
 
 // Initialize Services (Singleton pattern to avoid memory leaks)
-// Initialize Services (Singleton pattern to avoid memory leaks)
 const openaiClient = new OpenAIClient();
 const objectionMatcher = new ObjectionMatcher();
-const successTracker = new ObjectionSuccessTracker(supabaseAdmin); // Initialize first
+// Initialize successTracker first so it's available for injection
+const successTracker = new ObjectionSuccessTracker(supabaseAdmin);
+
 const coachEngine = new CoachEngine(
     new TriggerDetector(),
     objectionMatcher,
     new PromptBuilder(),
     openaiClient,
     new ResponseParser(),
-    successTracker // Injected
+    successTracker
 );
+
 const postCallAnalyzer = new PostCallAnalyzer(openaiClient);
 const whisperClient = new WhisperClient();
 
@@ -188,10 +202,29 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
         socket.on('message', async (message: string) => {
             try {
-                const event = JSON.parse(message.toString());
+                const msgString = message.toString();
+                if (!msgString.includes('media:stream') && !msgString.includes('audio:segment')) {
+                    console.log('RAW MSG RECEIVED:', msgString);
+                }
+                const event = JSON.parse(msgString);
+
+                // IGNORE media:stream logs to avoid noise, but log everything else
+                if (event.type !== 'media:stream' && event.type !== 'audio:segment') {
+                    logger.info(`📨 WS EVENT RECEIVED: ${event.type}`);
+                }
+
+                if (!callId && event.type !== 'call:start') {
+                    if (event.type === 'media:stream') {
+                        // Silent ignore or debug log
+                        // logger.debug('⚠️ media:stream received before call:start (Ignored)');
+                    } else {
+                        logger.warn(`⚠️ Received ${event.type} before call:start (callId is null)`);
+                    }
+                }
 
                 switch (event.type) {
                     case 'call:start':
+                        logger.info('🚀 Processing call:start payload:', JSON.stringify(event.payload));
                         await handleCallStart(event, user.id, socket);
                         break;
                     case 'audio:chunk':
@@ -264,92 +297,118 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         // --- Handlers ---
 
         async function handleCallStart(event: any, userId: string, ws: WebSocket) {
+            debugLog(`[START] handleCallStart Payload: ${JSON.stringify(event.payload)}`);
             logger.info({ payload: event.payload }, '📞 handleCallStart initiated');
-            const { scriptId, platform } = event.payload;
 
-            const { data: profile, error: profileError } = await supabaseAdmin.from('profiles').select('organization_id').eq('id', userId).single();
+            try {
+                const { scriptId, platform } = event.payload;
 
-            if (profileError || !profile) {
-                logger.error({ profileError, userId }, '❌ Profile not found or error');
-                return ws.close(1011, 'Profile not found');
-            }
+                // 1. Get User Profile & Org
+                const { data: profile, error: profileError } = await supabaseAdmin
+                    .from('profiles')
+                    .select('organization_id')
+                    .eq('id', userId)
+                    .single();
 
-            logger.info({ organizationId: profile.organization_id }, '✅ Profile found');
+                if (profileError || !profile) {
+                    debugLog(`[ERROR] Profile not found: ${JSON.stringify(profileError)}`);
+                    logger.error({ profileError, userId }, '❌ Profile not found or error');
+                    ws.send(JSON.stringify({ type: 'error', payload: { message: 'USER_PROFILE_NOT_FOUND' } }));
+                    return;
+                }
 
-            const { data: call, error: insertError } = await supabaseAdmin.from('calls')
-                .insert({
-                    user_id: userId,
-                    organization_id: profile.organization_id,
-                    script_id: scriptId,
-                    platform: platform || 'OTHER',
-                    status: 'ACTIVE',
-                    started_at: new Date().toISOString(),
-                })
-                .select().single();
+                const orgId = profile.organization_id; // Allow null if schema permits, or handle default
 
-            if (insertError) {
-                logger.error({ insertError }, '❌ ERRO AO CRIAR CHAMADA NO DB:');
-                // Enviar erro de volta para a extensão para sabermos o que houve
-                ws.send(JSON.stringify({
-                    type: 'error',
-                    payload: {
-                        message: 'Failed to create call in DB',
-                        details: insertError
-                    }
-                }));
-                return;
-            }
+                // 2. Resolve Script ID
+                let finalScriptId = scriptId;
+                if (!scriptId || scriptId === 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') {
+                    // Try to find a default script for the org
+                    const { data: defaultScript } = await supabaseAdmin
+                        .from('scripts')
+                        .select('id')
+                        .eq('organization_id', orgId)
+                        .limit(1)
+                        .maybeSingle();
 
-            if (!call) {
-                logger.error('❌ Call created but returned null data');
-                return;
-            }
+                    if (defaultScript) finalScriptId = defaultScript.id;
+                }
 
-            logger.info(`✅ Call created in DB: ${call.id}`);
-            callId = call.id;
+                // 3. Insert Call into DB
+                const { data: call, error: insertError } = await supabaseAdmin
+                    .from('calls')
+                    .insert({
+                        user_id: userId,
+                        organization_id: orgId,
+                        script_id: finalScriptId,
+                        platform: platform || 'OTHER',
+                        status: 'ACTIVE',
+                        started_at: new Date().toISOString(),
+                    })
+                    .select()
+                    .single();
 
-            const session: CallSession = {
-                callId: call.id,
-                userId: userId,
-                scriptId: scriptId,
-                transcript: [],
-                currentStep: 1,
-                lastCoachingAt: 0,
-                startupTime: Date.now()
-            };
-
-            await redis.set(`call:${call.id}`, session, 3600 * 4);
-            sessionData = session;
-
-            // Apply buffered leadName if it arrived before session was created
-            if (bufferedLeadName) {
-                sessionData.leadName = bufferedLeadName;
-                logger.info(`👤 Applying buffered lead name: ${bufferedLeadName}`);
-                await redis.set(`call:${call.id}`, sessionData, 3600 * 4);
-                bufferedLeadName = null;
-            }
-
-            ws.send(JSON.stringify({ type: 'call:started', payload: { callId: call.id } }));
-
-            // Subscribe to manager whisper commands
-            commandHandler = (command: any) => {
-                if (command.type === 'whisper') {
-                    // Forward whisper to extension
+                if (insertError) {
+                    logger.error({ insertError, finalScriptId }, '❌ DB INSERT FAILED: calls table');
                     ws.send(JSON.stringify({
-                        type: 'coach:whisper',
+                        type: 'error',
                         payload: {
-                            source: 'manager',
-                            content: command.content,
-                            urgency: command.urgency,
-                            timestamp: command.timestamp
+                            message: 'DB_INSERT_FAILED',
+                            details: insertError.message,
+                            code: insertError.code
                         }
                     }));
-                    logger.info(`💬 Forwarded manager whisper to seller`);
+                    return;
                 }
-            };
 
-            await redis.subscribe(`call:${call.id}:commands`, commandHandler);
-            logger.info(`🎧 Subscribed to commands for call ${call.id}`);
+                callId = call.id;
+                logger.info(`✅ Call created in DB. ID: ${callId}`);
+
+                // 4. Initialize Session
+                sessionData = {
+                    callId: callId,
+                    userId: userId,
+                    scriptId: finalScriptId,
+                    platform: platform,
+                    startedAt: new Date(),
+                    transcript: [],
+                    currentStep: 1,
+                    lastCoachingAt: 0,
+                    leadName: bufferedLeadName || undefined
+                };
+
+                // 5. Cache Session
+                await redis.set(`call:${callId}:session`, sessionData, 3600);
+
+                // 6. Subscribe to Manager Commands
+                commandHandler = (command: any) => {
+                    if (command.type === 'whisper') {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'coach:whisper',
+                                payload: {
+                                    source: 'manager',
+                                    content: command.content,
+                                    urgency: command.urgency,
+                                    timestamp: command.timestamp
+                                }
+                            }));
+                            logger.info(`💬 Forwarded manager whisper to seller`);
+                        }
+                    }
+                };
+                await redis.subscribe(`call:${callId}:commands`, commandHandler);
+
+                // 7. Confirm to Client
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'call:started', payload: { callId: callId } }));
+                }
+
+            } catch (err: any) {
+                logger.error({ err }, '🔥 CRITICAL ERROR in handleCallStart');
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'error', payload: { message: 'INTERNAL_ERROR' } }));
+                }
+            }
         }
 
         async function handleTranscript(event: any, currentCallId: string | null, ws: WebSocket) {
@@ -545,11 +604,12 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             const audioBuffer = Buffer.from(event.payload.audio, 'base64');
             const role = event.payload.role || event.payload.speaker || 'unknown'; // 'lead' | 'seller'
 
-            logger.info(`📦 [${role}] Audio segment: ${audioBuffer.length} bytes`);
+            debugLog(`[AUDIO] Received ${audioBuffer.length} bytes for role: ${role}`);
 
             const headerHex = audioBuffer.slice(0, 4).toString('hex');
             if (headerHex !== '1a45dfa3') {
-                logger.warn(`⚠️ Unexpected header: ${headerHex}`);
+                // logger.warn(`⚠️ Unexpected header: ${headerHex}`);
+                debugLog(`[WARNING] Unexpected header: ${headerHex}`);
             }
 
             try {
@@ -557,11 +617,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     ? (sessionData?.lastLeadTranscription || "Transcreva o áudio.")
                     : (sessionData?.lastSellerTranscription || "Transcreva o áudio.");
 
+                // LOG SOLICITADO
+                debugLog(`[WHISPER START] Transcribing ${audioBuffer.length} bytes...`);
                 const text = await whisperClient.transcribe(audioBuffer, previousText);
+                debugLog(`[WHISPER END] Result: '${text}'`);
 
                 if (text && text.trim().length > 0) {
                     if (isHallucination(text)) {
-                        logger.warn(`🚫 Hallucination filtered: "${text}"`);
+                        // logger.warn(`🚫 Hallucination filtered: "${text}"`);
+                        debugLog(`[FILTER] Hallucination: ${text}`);
                         return;
                     }
                     if (shouldDiscard(text.trim(), role, sessionData ?? null)) {
@@ -585,8 +649,28 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     }
 
                     logger.info(`✨ [${speakerLabel}]: "${text}"`);
+                    debugLog(`[SUCCESS] Transcription: ${text}`);
 
-                    // Publish transcript to Redis for manager monitoring
+                    // 1. Update Session Data
+                    if (sessionData) {
+                        const transcriptChunk = {
+                            text,
+                            speaker: speakerLabel,
+                            role,
+                            timestamp: Date.now(),
+                            isFinal: true
+                        };
+
+                        if (!sessionData.transcript) sessionData.transcript = [];
+                        sessionData.transcript.push(transcriptChunk);
+
+                        // 2. Persist to Redis (Session)
+                        if (callId) {
+                            await redis.set(`call:${callId}:session`, sessionData, 3600);
+                        }
+                    }
+
+                    // 3. Publish to Redis (Real-time Manager)
                     if (callId) {
                         await redis.publish(`call:${callId}:stream`, {
                             text,
@@ -594,6 +678,12 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             role,
                             timestamp: Date.now()
                         });
+
+                        // 4. (Optional) Real-time DB Update for dashboard if needed
+                        // Ideally we batch this or update on 'call:end', but for debugging:
+                        await supabaseAdmin.from('calls').update({
+                            transcript: sessionData?.transcript || []
+                        }).eq('id', callId);
                     }
 
                     ws.send(JSON.stringify({
@@ -606,9 +696,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         }
                     }));
                 } else {
-                    logger.debug('⏭️ Empty transcription (silence)');
+                    // logger.debug('⏭️ Empty transcription (silence)');
+                    debugLog(`[SILENCE] Empty transcription`);
                 }
             } catch (err: any) {
+                debugLog(`[WHISPER ERROR] ${err.message}\n${err.stack}`);
                 logger.error({ message: err?.message, stack: err?.stack }, `❌ [${role}] Transcription failed`);
             }
         }

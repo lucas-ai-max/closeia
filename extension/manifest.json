@@ -31,7 +31,9 @@
             "run_at": "document_idle"
         }
     ],
-    "action": {},
+    "action": {
+        "default_popup": "index.html"
+    },
     "web_accessible_resources": [
         {
             "resources": [

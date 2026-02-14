@@ -11,6 +11,20 @@ const server = Fastify({
     logger: config.isDev ? false : true, // We use pino logger manually in dev
 });
 
+import fs from 'fs';
+import path from 'path';
+
+// DEBUG LOGGING FILE
+const LOG_FILE = path.join(process.cwd(), 'backend-debug.log');
+
+function debugLog(msg: string) {
+    try {
+        fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`);
+    } catch (e) {
+        console.error('Failed to write to log file', e);
+    }
+}
+
 // Register Plugins
 server.register(cors, {
     origin: env.CORS_ORIGIN,
@@ -51,5 +65,16 @@ const start = async () => {
         process.exit(1);
     }
 };
+
+// Global Error Handlers to prevent crash
+process.on('uncaughtException', (err) => {
+    logger.fatal({ err }, '🔥 UNCAUGHT EXCEPTION - Process staying alive (investigate!)');
+    debugLog(`🔥 UNCAUGHT EXCEPTION: ${err.message}\n${err.stack}`);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error({ reason }, '🚨 UNHANDLED REJECTION');
+    debugLog(`🚨 UNHANDLED REJECTION: ${JSON.stringify(reason)}`);
+});
 
 start();

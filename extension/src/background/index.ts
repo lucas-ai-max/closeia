@@ -208,7 +208,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log(`📩 Background received message: ${message.type}`, { senderId: sender.id, senderUrl: sender.url });
 
     if (message.type === 'START_CAPTURE') {
-        startCapture(sender.tab?.id);
+        startCapture(message.tabId || sender.tab?.id);
     } else if (message.type === 'STOP_CAPTURE') {
         stopCapture();
     } else if (message.type === 'OFFSCREEN_READY') {
@@ -364,11 +364,19 @@ async function startCapture(explicitTabId?: number) {
 
         if (existingContexts.length === 0) {
             console.log('Creating offscreen document...');
-            await chrome.offscreen.createDocument({
-                url: 'src/offscreen/index.html',
-                reasons: ['USER_MEDIA' as chrome.offscreen.Reason],
-                justification: 'Recording tab audio for real-time transcription'
-            });
+            try {
+                await chrome.offscreen.createDocument({
+                    url: 'src/offscreen/index.html',
+                    reasons: ['USER_MEDIA' as chrome.offscreen.Reason, 'AUDIO_PLAYBACK' as chrome.offscreen.Reason],
+                    justification: 'Recording tab audio for real-time transcription'
+                });
+            } catch (err: any) {
+                if (err.message.includes('Only a single offscreen')) {
+                    console.log('✅ Offscreen document already exists (caught error)');
+                } else {
+                    throw err;
+                }
+            }
 
             // Wait for OFFSCREEN_READY signal
             console.log('⏳ Waiting for OFFSCREEN_READY...');
@@ -432,6 +440,24 @@ async function startCapture(explicitTabId?: number) {
 
             console.log('📤 Sending call:start:', lastCallStartParams);
             send('call:start', lastCallStartParams);
+
+            // Retry mechanisms for call:start
+            let attempts = 0;
+            const retryInterval = setInterval(() => {
+                if (isCallConfirmed || !isProcessing) { // Stop if confirmed or capture stopped
+                    clearInterval(retryInterval);
+                    return;
+                }
+                attempts++;
+                if (attempts > 5) {
+                    console.error('❌ Call start failed after 5 attempts (backend timeout)');
+                    clearInterval(retryInterval);
+                    broadcastStatus('ERROR');
+                    return; // Don't stop capture, just notify error
+                }
+                console.log(`🔄 Retrying call:start (attempt ${attempts})...`);
+                if (lastCallStartParams) send('call:start', lastCallStartParams);
+            }, 3000); // Retry every 3s
         }
 
     } catch (err: any) {

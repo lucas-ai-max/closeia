@@ -8,8 +8,8 @@ class RedisClient {
     private useMemory = false;
 
     constructor() {
-        if (!env.REDIS_URL || env.REDIS_URL.includes('undefined')) {
-            logger.warn('⚠️ REDIS_URL not set. Using in-memory cache.');
+        if (!env.REDIS_URL || env.REDIS_URL.includes('undefined') || env.REDIS_URL.startsWith('memory:')) {
+            logger.warn('⚠️ REDIS_URL set to memory mode. Using in-memory cache (No Pub/Sub).');
             this.useMemory = true;
             return;
         }
@@ -141,7 +141,17 @@ class RedisClient {
         try {
             // Create dedicated subscriber client if doesn't exist
             if (!this.subscribers.has(channel)) {
-                const subscriberClient = new Redis(env.REDIS_URL);
+                const subscriberClient = new Redis(env.REDIS_URL, {
+                    // Prevent auto-reconnect spam if Redis is down
+                    retryStrategy: (times) => Math.min(times * 100, 3000),
+                    maxRetriesPerRequest: 3
+                });
+
+                // CRITICAL: Handle errors to prevent crash
+                subscriberClient.on('error', (err) => {
+                    logger.error({ err, channel }, '❌ Redis Subscriber Error');
+                    // Should we disconnect? For now, just log to keep process alive
+                });
 
                 subscriberClient.on('message', (ch, msg) => {
                     if (ch === channel) {

@@ -30,12 +30,14 @@ chrome.runtime.onMessage.addListener((message) => {
         startTranscription(message.streamId);
 
         // Check initial storage state
-        chrome.storage.local.get(['micMuted'], (result) => {
-            if (result.micMuted !== undefined) {
-                sellerPaused = !!result.micMuted;
-                log(`🎤 Initial mic state from storage: ${sellerPaused ? 'MUTED' : 'active'}`);
-            }
-        });
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.get(['micMuted'], (result) => {
+                if (result && result.micMuted !== undefined) {
+                    sellerPaused = !!result.micMuted;
+                    log(`🎤 Initial mic state from storage: ${sellerPaused ? 'MUTED' : 'active'}`);
+                }
+            });
+        }
 
     } else if (message.type === 'STOP_RECORDING') {
         log('📩 STOP_RECORDING received');
@@ -47,12 +49,14 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 // Robust state sync via storage
-chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.micMuted) {
-        sellerPaused = !!changes.micMuted.newValue;
-        log(`🎤 [STORAGE SYNC] Seller recording ${sellerPaused ? 'PAUSED (mic muted)' : 'RESUMED'}`);
-    }
-});
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.micMuted) {
+            sellerPaused = !!changes.micMuted.newValue;
+            log(`🎤 [STORAGE SYNC] Seller recording ${sellerPaused ? 'PAUSED (mic muted)' : 'RESUMED'}`);
+        }
+    });
+}
 
 chrome.runtime.sendMessage({ type: 'OFFSCREEN_READY' }).catch(() => { });
 
@@ -113,7 +117,11 @@ async function startTranscription(streamId: string) {
         const tabPlayback = playbackContext.createMediaStreamSource(tabStream);
         tabPlayback.connect(playbackContext.destination);
         await playbackContext.resume();
-        log('🔊 Tab audio routed to speakers');
+        if (playbackContext.state === 'suspended') {
+            log('⚠️ PlaybackContext is suspended. Autoplay policy might be blocking audio.');
+        } else {
+            log(`🔊 Tab audio routed to speakers (State: ${playbackContext.state})`);
+        }
 
         // === 3. Analisador de volume para tab ===
         const tabCtx = new AudioContext();

@@ -40,9 +40,12 @@ export default function Popup() {
         setSession(null);
     };
 
-    const toggleCapture = () => {
+    const toggleCapture = async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
         chrome.runtime.sendMessage({
-            type: status === 'RECORDING' ? 'STOP_CAPTURE' : 'START_CAPTURE'
+            type: status === 'RECORDING' ? 'STOP_CAPTURE' : 'START_CAPTURE',
+            tabId: tab?.id
         });
         // Listen for response or status update via message
     };
