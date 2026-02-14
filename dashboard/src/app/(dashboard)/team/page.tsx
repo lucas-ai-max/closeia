@@ -33,7 +33,7 @@ export default function TeamPage() {
       }
 
       // api.post handles auth internally
-      await api.post('/admin/create-user', formData)
+      await api.post('/api/admin/create-user', formData)
 
       alert(`Usuário criado com sucesso! O vendedor ${formData.name} foi adicionado à equipe.`)
 

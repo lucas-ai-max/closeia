@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 const NEON_PINK = '#ff007a'
@@ -31,6 +32,12 @@ const PROMO_ITEMS = [
 ]
 
 export function RightSidebar() {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   return (
     <aside
       suppressHydrationWarning
@@ -64,8 +71,8 @@ export function RightSidebar() {
             Resumo
           </span>
         </div>
-        <div className="text-3xl font-bold text-white tracking-tight mb-1">
-          1.234
+        <div className="text-3xl font-bold text-white tracking-tight mb-1" suppressHydrationWarning>
+          {mounted ? '1.234' : '...'}
         </div>
         <p className="text-[10px] text-gray-500 uppercase tracking-widest">
           Chamadas este mês
@@ -81,7 +88,7 @@ export function RightSidebar() {
           </Link>
         </div>
         <div className="space-y-4">
-          {TODAY_ITEMS.map((item, i) => (
+          {mounted && TODAY_ITEMS.map((item, i) => (
             <div
               key={i}
               className="flex items-center justify-between glass-card-dark p-3 rounded-xl"
@@ -112,6 +119,7 @@ export function RightSidebar() {
               <div
                 className={`text-xs font-bold ${item.positive ? '' : ''}`}
                 style={item.positive ? { color: NEON_GREEN } : undefined}
+                suppressHydrationWarning
               >
                 {item.value}
               </div>
@@ -133,7 +141,7 @@ export function RightSidebar() {
             style={{ borderLeftColor: NEON_ORANGE }}
           >
             <div className="text-center min-w-[32px]">
-              <div className="text-xs font-bold text-white">12</div>
+              <div className="text-xs font-bold text-white" suppressHydrationWarning>12</div>
               <div className="text-[9px] text-gray-500 uppercase">Sex</div>
             </div>
             <div>
@@ -147,7 +155,7 @@ export function RightSidebar() {
             style={{ borderLeftColor: NEON_PURPLE }}
           >
             <div className="text-center min-w-[32px]">
-              <div className="text-xs font-bold text-white">15</div>
+              <div className="text-xs font-bold text-white" suppressHydrationWarning>15</div>
               <div className="text-[9px] text-gray-500 uppercase">Seg</div>
             </div>
             <div>
@@ -162,7 +170,7 @@ export function RightSidebar() {
       <div>
         <h3 className="font-bold text-sm text-white mb-4">Chamadas recentes</h3>
         <div className="space-y-4">
-          {['Maria S.', 'Pedro O.', 'Ana L.'].map((name, i) => (
+          {mounted && ['Maria S.', 'Pedro O.', 'Ana L.'].map((name, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-gray-700 border border-white/10 flex items-center justify-center text-white text-sm font-bold">
