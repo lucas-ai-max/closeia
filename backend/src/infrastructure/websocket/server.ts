@@ -76,7 +76,7 @@ const HALLUCINATION_PATTERNS = [
 
 function isHallucination(text: string): boolean {
     const trimmed = text.trim();
-    if (trimmed.replace(/[^a-zA-ZÀ-ú]/g, '').length < 3) return true; // Too short
+    if (trimmed.replace(/[^a-zA-ZÀ-ú]/g, '').length < 5) return true; // Too short (User requested filter 5)
     for (const pattern of HALLUCINATION_PATTERNS) {
         if (pattern.test(trimmed)) return true;
     }
@@ -304,7 +304,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
             try {
                 console.log('📞 handleCallStart CALLED with:', event.payload);
-                const { scriptId, platform } = event.payload;
+                const { scriptId, platform, leadName } = event.payload;
 
                 // 0. Check if call already exists for this connection (Idempotency)
                 if (callId) {
@@ -355,10 +355,12 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         callId = existingCall.id;
                         sessionData = existingSession;
 
-                        // Check if we have a buffered lead name to apply
-                        if (bufferedLeadName) {
-                            sessionData.leadName = bufferedLeadName;
-                            logger.info(`👤 Applied buffered lead name to resumed session: ${bufferedLeadName}`);
+                        // Check if we have a lead name to apply (Payload > Buffered > Redis)
+                        const resumeLeadName = leadName || bufferedLeadName;
+
+                        if (resumeLeadName) {
+                            sessionData.leadName = resumeLeadName;
+                            logger.info(`👤 Applied lead name to resumed session: ${resumeLeadName}`);
                             await redis.set(`call:${callId}:session`, sessionData, 3600);
                         } else if (!sessionData.leadName) {
                             // Try to see if it was saved in Redis while we were processing
@@ -386,14 +388,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             }
                         };
                         await redis.subscribe(`call:${callId}:commands`, commandHandler);
-
-                        // Check if we have a buffered lead name to apply
-                        if (bufferedLeadName) {
-                            sessionData.leadName = bufferedLeadName;
-                            logger.info(`👤 Applied buffered lead name to resumed session: ${bufferedLeadName}`);
-                            // Update Redis with the new name
-                            await redis.set(`call:${callId}:session`, sessionData, 3600);
-                        }
 
                         // Confirm to client
                         if (ws.readyState === WebSocket.OPEN) {
@@ -465,7 +459,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     transcript: [],
                     currentStep: 1,
                     lastCoachingAt: 0,
-                    leadName: bufferedLeadName || undefined
+                    leadName: leadName || bufferedLeadName || undefined
                 };
 
                 // 5. Cache Session
@@ -733,27 +727,23 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         }
                     }
 
-                    const speakerLabel = role === 'seller'
-                        ? 'Você'
-                        : (sessionData?.leadName || 'Cliente');
+                    // 1. Dynamic Speaker Label Resolution
+                    const currentLeadName = sessionData?.leadName || bufferedLeadName || 'Cliente';
+                    const speakerLabel = role === 'seller' ? 'Você' : currentLeadName;
 
                     if (role === 'lead') {
                         logger.info(`🔍 [Participant Debug] Role: lead. Session LeadName: '${sessionData?.leadName}'. Buffered: '${bufferedLeadName}'. Final Label: '${speakerLabel}'`);
                     }
 
-                    if (role === 'lead' && speakerLabel === 'Cliente') {
-                        logger.debug(`🔍 Speaker is 'Cliente'. sessionData.leadName is: ${sessionData?.leadName}. Buffered was: ${bufferedLeadName}`);
-                    }
-
                     logger.info(`✨ [${speakerLabel}]: "${text}"`);
                     debugLog(`[SUCCESS] Transcription: ${text}`);
 
-                    // 1. Update Session Data
+                    // 2. Update Session Data
                     if (sessionData) {
                         const transcriptChunk = {
                             text,
-                            speaker: speakerLabel,
-                            role,
+                            speaker: speakerLabel, // Explicitly save resolved name
+                            role,                  // Explicitly save role
                             timestamp: Date.now(),
                             isFinal: true
                         };
@@ -761,13 +751,22 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         if (!sessionData.transcript) sessionData.transcript = [];
                         sessionData.transcript.push(transcriptChunk);
 
-                        // 2. Persist to Redis (Session)
+                        // 3. Persist to Redis (Session)
                         if (callId) {
                             await redis.set(`call:${callId}:session`, sessionData, 3600);
                         }
+
+                        // 4. Update DB (Full transcript array)
+                        const { error: updateError } = await supabaseAdmin.from('calls').update({
+                            transcript: sessionData.transcript
+                        }).eq('id', callId);
+
+                        if (updateError) {
+                            logger.error({ updateError, callId }, '❌ DB UPDATE ERROR: Failed to save transcript');
+                        }
                     }
 
-                    // 3. Publish to Redis (Real-time Manager)
+                    // 5. Publish to Redis (Real-time Manager)
                     if (callId) {
                         await redis.publish(`call:${callId}:stream`, {
                             text,
@@ -775,17 +774,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             role,
                             timestamp: Date.now()
                         });
-
-                        // 4. (Optional) Real-time DB Update for dashboard if needed
-                        // Ideally we batch this or update on 'call:end', but for debugging:
-                        const { error: updateError } = await supabaseAdmin.from('calls').update({
-                            transcript: sessionData?.transcript || []
-                        }).eq('id', callId);
-
-                        if (updateError) {
-                            logger.error({ updateError, callId }, '❌ DB UPDATE ERROR: Failed to save transcript');
-                            debugLog(`[DB ERROR] ${updateError.message} (${updateError.code})`);
-                        }
                     }
 
                     ws.send(JSON.stringify({
@@ -804,6 +792,98 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             } catch (err: any) {
                 debugLog(`[WHISPER ERROR] ${err.message}\n${err.stack}`);
                 logger.error({ message: err?.message, stack: err?.stack }, `❌ [${role}] Transcription failed`);
+            }
+        }
+
+        async function handleCallParticipants(event: any, currentCallId: string | null, session: CallSession | null) {
+            logger.info(`📨 Handling call:participants event. Payload: ${JSON.stringify(event.payload)}`);
+            const leadName = event.payload?.leadName;
+
+            if (!leadName) {
+                logger.warn('⚠️ Received call:participants but leadName is missing or empty');
+                return;
+            }
+
+            // A. If session doesn't exist yet, buffer the leadName
+            if (!session || !currentCallId) {
+                bufferedLeadName = leadName;
+                logger.info(`👤 Buffering lead name (session not ready): ${leadName}`);
+                return;
+            }
+
+            // B. IMMEDIATE Local Update (Crucial for active connections)
+            if (sessionData) {
+                sessionData.leadName = leadName;
+
+                // 🌟 Retroactive Correction in Memory (The User's specific request)
+                if (sessionData.transcript && Array.isArray(sessionData.transcript)) {
+                    let hasUpdates = false;
+                    sessionData.transcript = sessionData.transcript.map(chunk => {
+                        if (chunk.role === 'lead' && (chunk.speaker === 'Cliente' || !chunk.speaker)) {
+                            hasUpdates = true;
+                            return { ...chunk, speaker: leadName };
+                        }
+                        return chunk;
+                    });
+
+                    if (hasUpdates) {
+                        logger.info(`🔄 Retroactively updated ${sessionData.transcript.length} transcript chunks in memory`);
+
+                        // Sync immediately with DB to fix initial "Clients"
+                        await supabaseAdmin
+                            .from('calls')
+                            .update({ transcript: sessionData.transcript })
+                            .eq('id', currentCallId);
+                    }
+                }
+            }
+
+            // Also update the session object passed in if it's different and valid
+            if (session && session !== sessionData) {
+                session.leadName = leadName;
+            }
+
+            // Clear buffer now that we've applied it
+            if (bufferedLeadName === leadName) {
+                bufferedLeadName = null;
+            }
+
+            logger.info(`👤 Lead identified and set in session: ${leadName}`);
+            await redis.set(`call:${currentCallId}:session`, sessionData || session, 3600 * 4);
+
+            // C. Retroactive Update (Fix past "Cliente" entries)
+            try {
+                const { data: currentCall } = await supabaseAdmin
+                    .from('calls')
+                    .select('transcript')
+                    .eq('id', currentCallId)
+                    .single();
+
+                if (currentCall?.transcript && Array.isArray(currentCall.transcript)) {
+                    let hasUpdates = false;
+                    const updatedTranscript = currentCall.transcript.map((msg: any) => {
+                        if (msg.role === 'lead' && (msg.speaker === 'Cliente' || !msg.speaker)) {
+                            hasUpdates = true;
+                            return { ...msg, speaker: leadName };
+                        }
+                        return msg;
+                    });
+
+                    if (hasUpdates) {
+                        logger.info(`🔄 Retroactively updating transcript with lead name: ${leadName}`);
+                        await supabaseAdmin
+                            .from('calls')
+                            .update({ transcript: updatedTranscript })
+                            .eq('id', currentCallId);
+
+                        // Also update local session transcript to match
+                        if (sessionData) {
+                            sessionData.transcript = updatedTranscript;
+                        }
+                    }
+                }
+            } catch (err) {
+                logger.error({ err }, 'Failed to retroactively update lead name in transcript');
             }
         }
     });

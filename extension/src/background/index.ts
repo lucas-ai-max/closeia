@@ -437,8 +437,9 @@ async function startCapture(explicitTabId?: number) {
         if (session?.access_token) {
             lastCallStartParams = {
                 platform: urlToPlatform(tab.url),
-                scriptId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' // Script Padrão criado no banco
-            };
+                scriptId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', // Script Padrão criado no banco
+                leadName: currentLeadName
+            } as any;
 
             console.log('📤 Sending call:start:', lastCallStartParams);
             send('call:start', lastCallStartParams);
