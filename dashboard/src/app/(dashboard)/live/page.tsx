@@ -19,7 +19,7 @@ interface Call {
     platform: string;
     started_at: string;
     user?: {
-        name: string;
+        full_name: string;
         email: string;
     };
     script?: {
@@ -45,7 +45,7 @@ export default function LivePage() {
             .from('calls')
             .select(`
                 *,
-                user:profiles!user_id(name, email),
+                user:profiles!user_id(full_name, email),
                 script:scripts!calls_script_relationship(name)
             `)
             .eq('status', 'ACTIVE')
@@ -216,7 +216,7 @@ export default function LivePage() {
                                 >
                                     <div className="flex justify-between items-start gap-2 mb-2">
                                         <div className="min-w-0">
-                                            <p className="font-semibold text-white truncate">{call.user?.name || 'Vendedor'}</p>
+                                            <p className="font-semibold text-white truncate">{call.user?.full_name || 'Vendedor'}</p>
                                             <p className="text-xs text-gray-500 truncate">{call.script?.name || 'Script Geral'}</p>
                                         </div>
                                         <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-pink/20 text-neon-pink animate-pulse flex items-center gap-1">
@@ -267,7 +267,7 @@ export default function LivePage() {
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                         <CardTitle className="text-base font-bold text-white flex items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-                                            <span className="truncate">Monitorando: {selectedCall.user?.name}</span>
+                                            <span className="truncate">Monitorando: {selectedCall.user?.full_name}</span>
                                         </CardTitle>
                                         <span className="text-xs px-2 py-1 rounded-lg bg-white/10 text-gray-400">
                                             {selectedCall.platform}
