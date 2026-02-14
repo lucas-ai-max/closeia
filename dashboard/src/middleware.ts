@@ -55,21 +55,26 @@ export async function middleware(request: NextRequest) {
     )
 
     const { data: { session } } = await supabase.auth.getSession()
+    const pathname = request.nextUrl.pathname
 
-    // Guard protected routes
-    if (request.nextUrl.pathname.startsWith('/') &&
-        !request.nextUrl.pathname.startsWith('/login') &&
-        !request.nextUrl.pathname.startsWith('/register') &&
-        !request.nextUrl.pathname.startsWith('/auth') &&
-        !request.nextUrl.pathname.startsWith('/_next') &&
-        !request.nextUrl.pathname.startsWith('/api') &&
-        !session
-    ) {
+    // Landing como primeira página: "/" sem sessão mostra a landing (rewrite para /landing)
+    if (pathname === '/' && !session) {
+        return NextResponse.rewrite(new URL('/landing', request.url))
+    }
+
+    // Rotas públicas: landing, login, register, auth
+    const isPublic =
+        pathname === '/' ||
+        pathname.startsWith('/landing') ||
+        pathname.startsWith('/login') ||
+        pathname.startsWith('/register') ||
+        pathname.startsWith('/auth')
+
+    if (!isPublic && !session) {
         return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    // Redirect to dashboard if logged in and trying to access auth pages
-    if ((request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')) && session) {
+    if ((pathname.startsWith('/login') || pathname.startsWith('/register')) && session) {
         return NextResponse.redirect(new URL('/', request.url))
     }
 
