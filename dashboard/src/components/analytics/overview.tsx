@@ -19,28 +19,33 @@ interface OverviewProps {
 
 export function Overview({ height = 256 }: OverviewProps) {
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={DATA}>
-        <XAxis
-          dataKey="name"
-          stroke="#888888"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis
-          stroke="#888888"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => `${value}`}
-        />
-        <Bar
-          dataKey="total"
-          fill={PRIMARY_COLOR}
-          radius={[4, 4, 0, 0]}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="animate-chart-in opacity-0" style={{ animationDelay: '200ms' }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={DATA}>
+          <XAxis
+            dataKey="name"
+            stroke="#888888"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            stroke="#888888"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(value) => `${value}`}
+          />
+          <Bar
+            dataKey="total"
+            fill={PRIMARY_COLOR}
+            radius={[4, 4, 0, 0]}
+            isAnimationActive
+            animationBegin={400}
+            animationDuration={600}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }

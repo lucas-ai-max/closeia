@@ -1,7 +1,11 @@
+'use client'
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
+
+const STAGGER_MS = 80
 
 interface ObjectionMetric {
     objection: string
@@ -13,7 +17,13 @@ interface ObjectionMetric {
 export function ObjectionAnalytics() {
     const [metrics, setMetrics] = useState<ObjectionMetric[]>([])
     const [loading, setLoading] = useState(true)
+    const [progressReady, setProgressReady] = useState(false)
     const supabase = createClient()
+
+    useEffect(() => {
+        const t = setTimeout(() => setProgressReady(true), 300)
+        return () => clearTimeout(t)
+    }, [])
 
     useEffect(() => {
         async function fetchMetrics() {
@@ -44,40 +54,60 @@ export function ObjectionAnalytics() {
         fetchMetrics()
     }, [])
 
-    if (loading) return <div>Carregando métricas...</div>
+    if (loading) {
+        return (
+            <div
+                className="col-span-1 md:col-span-2 lg:col-span-3 rounded-[24px] border p-6"
+                style={{ backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }}
+            >
+                <p className="text-gray-500 text-sm">Carregando métricas...</p>
+            </div>
+        )
+    }
 
     return (
-        <Card className="col-span-1 md:col-span-2 lg:col-span-3">
-            <CardHeader>
-                <CardTitle>Analytics de Objeções</CardTitle>
-                <CardDescription>
+        <Card
+            className="col-span-1 md:col-span-2 lg:col-span-3 rounded-[24px] border shadow-none"
+            style={{ backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }}
+        >
+            <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-bold text-white">
+                    Analytics de Objeções
+                </CardTitle>
+                <CardDescription className="text-gray-500 text-sm">
                     Eficácia das respostas para as objeções mais comuns (Baseado em dados reais)
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="space-y-6">
                     {metrics.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            <p>Nenhuma métrica de objeção coletada ainda.</p>
+                        <div className="text-center py-8 text-gray-500">
+                            <p className="text-sm">Nenhuma métrica de objeção coletada ainda.</p>
                             <p className="text-xs mt-1">Realize chamadas e marque vendas para gerar dados.</p>
                         </div>
                     ) : metrics.map((item, index) => (
-                        <div key={index} className="space-y-2">
+                        <div
+                            key={index}
+                            className="space-y-2 animate-chart-in opacity-0"
+                            style={{ animationDelay: `${index * STAGGER_MS}ms` }}
+                        >
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
-                                    <div className="font-medium text-base">{item.objection}</div>
-                                    <div className="text-xs text-muted-foreground">
-                                        Usada {item.usageCount} vezes • Melhor resposta: <span className="font-semibold text-emerald-600 line-clamp-1" title={item.bestResponse}>{item.bestResponse}</span>
+                                    <div className="font-medium text-base text-white">{item.objection}</div>
+                                    <div className="text-xs text-gray-500">
+                                        Usada {item.usageCount} vezes • Melhor resposta: <span className="font-semibold text-neon-green line-clamp-1" title={item.bestResponse}>{item.bestResponse}</span>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-2xl font-bold">{item.successRate}%</div>
-                                    <div className="text-xs text-muted-foreground">Taxa de Sucesso</div>
+                                    <div className="text-2xl font-bold text-white">{item.successRate}%</div>
+                                    <div className="text-xs text-gray-500">Taxa de Sucesso</div>
                                 </div>
                             </div>
-                            <Progress value={item.successRate} className="h-2"
+                            <Progress
+                                value={progressReady ? item.successRate : 0}
+                                className="h-2 bg-black/40"
                                 indicatorClassName={
-                                    item.successRate > 70 ? "bg-emerald-500" :
+                                    item.successRate > 70 ? "bg-neon-green" :
                                         item.successRate > 50 ? "bg-amber-500" : "bg-red-500"
                                 }
                             />

@@ -93,6 +93,7 @@ export default function CallDetailsPage() {
                     .single();
 
                 if (profileError) throw new Error('Failed to fetch profile');
+                const profileData = profile as { role?: string } | null;
                 setCurrentUser(profile);
 
                 // 3. Get Call Data with Relations
@@ -111,8 +112,9 @@ export default function CallDetailsPage() {
                 if (!callData) throw new Error('Call not found');
 
                 // 4. Apply RBAC
-                const isOwner = callData.user_id === authUser.id;
-                const isManager = ['ADMIN', 'MANAGER'].includes(profile.role);
+                const call = callData as Call;
+                const isOwner = call.user_id === authUser.id;
+                const isManager = profileData ? ['ADMIN', 'MANAGER'].includes(profileData.role ?? '') : false;
 
                 if (!isOwner && !isManager) {
                     throw new Error('Unauthorized access');
@@ -122,9 +124,9 @@ export default function CallDetailsPage() {
                 // The query `summary:call_summaries(*)` with a unique constraint returns an array or single object depending on client setup. 
                 // Usually `single()` on the main query helps, but relations can be arrays.
                 // Assuming summary is a single object or we take the first text.
-                const summary = Array.isArray(callData.summary) ? callData.summary[0] : callData.summary;
+                const summary = Array.isArray(call.summary) ? call.summary[0] : call.summary;
 
-                setCall({ ...callData, summary });
+                setCall({ ...call, summary });
 
             } catch (err: any) {
                 console.error('Error loading call:', err);

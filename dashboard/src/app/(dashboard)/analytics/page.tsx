@@ -1,3 +1,5 @@
+'use client'
+
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { ObjectionAnalytics } from '@/components/analytics/objection-analytics'
 import { SellerDashboard } from '@/components/analytics/seller-dashboard'

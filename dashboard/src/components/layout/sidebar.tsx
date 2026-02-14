@@ -10,9 +10,7 @@ import { useAuth } from '@/hooks/use-auth'
 const navSections = [
   {
     label: 'Home',
-    items: [
-      { name: 'Dashboard', href: '/', icon: 'dashboard' },
-    ],
+    items: [{ name: 'Dashboard', href: '/', icon: 'dashboard' }],
   },
   {
     label: 'App',
@@ -25,7 +23,7 @@ const navSections = [
     ],
   },
   {
-    label: 'Conta',
+    label: 'Sistema',
     items: [
       { name: 'Configurações', href: '/settings', icon: 'settings' },
     ],
@@ -36,6 +34,8 @@ function isActivePath(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/'
   return pathname.startsWith(href)
 }
+
+const NEON_PINK = '#ff007a'
 
 export function Sidebar() {
   const [mounted, setMounted] = useState(false)
@@ -54,39 +54,48 @@ export function Sidebar() {
     router.refresh()
   }
 
-  // Prevent hydration mismatch by using default values during server render/first client render
-  const displayName = mounted && user?.user_metadata?.full_name
-    ? user.user_metadata.full_name
-    : (mounted && user?.email?.split('@')[0] ? user.email.split('@')[0] : 'Usuário')
-
+  const displayName =
+    mounted && user?.user_metadata?.full_name
+      ? user.user_metadata.full_name
+      : mounted && user?.email?.split('@')[0]
+        ? user.email.split('@')[0]
+        : 'Usuário'
   const role = (mounted && user?.user_metadata?.role) ?? 'Membro'
 
   return (
-    <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col fixed h-full z-10">
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-xl">C</span>
+    <aside
+      className="w-64 shrink-0 bg-black border-r border-white/5 flex flex-col"
+      style={{ borderColor: 'rgba(255,255,255,0.05)' }}
+    >
+      <div className="p-8 flex items-center gap-3">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{
+            backgroundColor: NEON_PINK,
+            boxShadow: `0 0 15px rgba(255,0,122,0.4)`,
+          }}
+        >
+          <span className="text-white font-bold text-lg">C</span>
         </div>
-        <span className="text-xl font-bold tracking-tight">CloseIA</span>
+        <span className="text-xl font-bold tracking-tight text-white">
+          CloseIA
+        </span>
       </div>
-      <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto">
+      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto scrollbar-hide">
         {navSections.map((section) => {
-          // Filter items based on role
-          const filteredItems = section.items.filter(item => {
+          const filteredItems = section.items.filter((item) => {
             if (role === 'SELLER') {
-              // Sellers cannot see Scripts, Team, or Live View
-              if (['Scripts', 'Equipe', 'Ao Vivo'].includes(item.name)) return false;
+              if (['Scripts', 'Equipe', 'Ao Vivo'].includes(item.name))
+                return false
             }
-            return true;
-          });
-
-          if (filteredItems.length === 0) return null;
-
+            return true
+          })
+          if (filteredItems.length === 0) return null
           return (
             <div key={section.label}>
-              <p className="px-2 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-gray-600 uppercase tracking-widest first:pt-0">
                 {section.label}
-              </p>
+              </div>
               <div className="space-y-1">
                 {filteredItems.map((item) => {
                   const isActive = isActivePath(pathname, item.href)
@@ -95,10 +104,10 @@ export function Sidebar() {
                       key={item.name}
                       href={item.href}
                       className={cn(
-                        'flex items-center gap-3 px-3 py-2 rounded-lg font-medium transition-colors',
+                        'flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors',
                         isActive
-                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-primary'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          ? 'bg-neon-pink/10 text-neon-pink'
+                          : 'text-gray-400 hover:text-white'
                       )}
                     >
                       <span className="material-icons-outlined text-[20px]">
@@ -113,32 +122,35 @@ export function Sidebar() {
           )
         })}
       </nav>
-      <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl mb-4">
-          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-primary font-semibold text-sm">
+      <div className="p-4 border-t border-white/5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+            <span
+              className="text-sm font-bold"
+              style={{ color: NEON_PINK }}
+            >
               {displayName.charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold truncate">{displayName}</p>
-            <p className="text-xs text-slate-500 truncate">{role}</p>
+            <p className="text-xs font-bold text-white truncate">{displayName}</p>
+            <p className="text-[10px] text-gray-500 truncate">{role}</p>
           </div>
         </div>
-        <div className="flex justify-between items-center px-2">
+        <div className="flex justify-between items-center">
           <Link
             href="/settings"
-            className="text-slate-500 hover:text-primary transition-colors flex items-center gap-1 text-sm"
+            className="text-gray-500 hover:text-neon-pink transition-colors flex items-center gap-1 text-xs"
           >
-            <span className="material-icons-outlined text-[18px]">settings</span>
-            Configurações
+            <span className="material-icons-outlined text-[16px]">settings</span>
+            Config
           </Link>
           <button
             type="button"
             onClick={handleLogout}
-            className="text-slate-500 hover:text-red-500 transition-colors flex items-center gap-1 text-sm"
+            className="text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1 text-xs"
           >
-            <span className="material-icons-outlined text-[18px]">logout</span>
+            <span className="material-icons-outlined text-[16px]">logout</span>
             Sair
           </button>
         </div>

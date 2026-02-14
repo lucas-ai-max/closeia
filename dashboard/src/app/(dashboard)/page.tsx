@@ -1,44 +1,127 @@
 'use client'
 
 import { DashboardHeader } from '@/components/layout/dashboard-header'
-import { Overview } from '@/components/analytics/overview'
-import { RecentCalls } from '@/components/analytics/recent-calls'
 import { SellerDashboard } from '@/components/analytics/seller-dashboard'
 import { ObjectionAnalytics } from '@/components/analytics/objection-analytics'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+import { linePathFromData, areaPathFromData } from '@/lib/chart-utils'
 
-const HERO_STATS = [
-  { value: '1.234', label: 'Total de Chamadas', sub: null },
-  { value: '412', label: 'Por Script', sub: '(33%)' },
-  { value: '289', label: 'Por Agente', sub: '(23%)' },
-  { value: '198', label: 'Convertidas', sub: '(16%)' },
-  { value: '335', label: 'Em follow-up', sub: '(27%)' },
+const NEON_PINK = '#ff007a'
+const NEON_BLUE = '#00d1ff'
+const NEON_GREEN = '#00ff94'
+const NEON_ORANGE = '#ff8a00'
+
+/** Dados para o gráfico de estatística de chamadas (meses Jan–Ago) */
+const LINE_CHART_PREVIOUS = [120, 80, 140, 40, 100, 85, 130, 60]
+const LINE_CHART_CURRENT = [150, 100, 120, 90, 140, 110, 95, 105]
+
+const METRICS = [
+  {
+    change: '2.65%',
+    positive: true,
+    value: '1.450',
+    label: 'Total de Chamadas',
+    color: NEON_PINK,
+    path: 'M0 25 Q 10 5, 20 20 T 40 10 T 60 15',
+  },
+  {
+    change: '1.12%',
+    positive: true,
+    value: '412',
+    label: 'Por Script',
+    color: NEON_BLUE,
+    path: 'M0 15 Q 15 25, 30 10 T 60 20',
+  },
+  {
+    change: '0.45%',
+    positive: false,
+    value: '198',
+    label: 'Convertidas',
+    color: NEON_GREEN,
+    path: 'M0 10 Q 15 5, 30 20 T 60 15',
+  },
+  {
+    change: '2.12%',
+    positive: true,
+    value: '335',
+    label: 'Em follow-up',
+    color: NEON_ORANGE,
+    path: 'M0 20 Q 15 10, 30 25 T 60 15',
+  },
 ]
+
+const TOP_LEADERS = [
+  { name: 'Maria Silva', role: 'Vendas', target: 'R$ 124.500', conversion: '12%', performance: 75, color: NEON_PINK },
+  { name: 'João Santos', role: 'SDR', target: 'R$ 98.200', conversion: '18%', performance: 100, color: NEON_BLUE },
+  { name: 'Ana Oliveira', role: 'Vendas', target: 'R$ 87.000', conversion: '9%', performance: 60, color: NEON_GREEN },
+]
+
+const CHART_WIDTH = 960
+const CHART_HEIGHT = 240
+const CHART_VIEW_HEIGHT = 262
+const CHART_PADDING = 20
+const CHART_MARGIN_LEFT = -10
+const PLOT_WIDTH = CHART_WIDTH - CHART_MARGIN_LEFT
+const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago']
+
+function getChartScale(valuesPrev: number[], valuesCurr: number[]) {
+  const all = [...valuesPrev, ...valuesCurr]
+  const dataMin = Math.min(...all)
+  const dataMax = Math.max(...all)
+  const range = dataMax - dataMin || 1
+  const innerHeight = CHART_HEIGHT - CHART_PADDING * 2
+  const valueToY = (v: number) =>
+    CHART_PADDING + innerHeight - ((v - dataMin) / range) * innerHeight
+  const ticks = 5
+  const step = (dataMax - dataMin) / (ticks - 1)
+  const yTickValues = Array.from({ length: ticks }, (_, i) =>
+    Math.round(dataMin + step * i)
+  )
+  return { dataMin, dataMax, valueToY, yTickValues }
+}
 
 export default function DashboardPage() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [progressReady, setProgressReady] = useState(false)
+  const [chartTooltip, setChartTooltip] = useState<{
+    index: number
+    x: number
+    y: number
+  } | null>(null)
+  const chartRef = useRef<SVGSVGElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
+    const t = setTimeout(() => setProgressReady(true), 400)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
     async function checkRole() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single()
-
-        if (profile) setUserRole((profile as any).role)
+        if (profile) setUserRole((profile as { role?: string }).role ?? null)
       }
       setLoading(false)
     }
     checkRole()
   }, [])
 
-  if (loading) return <div className="p-8">Carregando...</div>
+  if (loading) {
+    return (
+      <div className="p-8 text-gray-400">Carregando...</div>
+    )
+  }
 
   if (userRole === 'SELLER') {
     return (
@@ -51,240 +134,411 @@ export default function DashboardPage() {
 
   return (
     <>
-      <DashboardHeader title="Dashboard (Visão Gestor)" />
-      <section
-        className="mb-8 p-8 rounded-3xl overflow-hidden relative bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: 'url(/bg2.jpg)' }}
+      <DashboardHeader title="Dashboard" />
+
+      {/* Card de métricas (4 colunas) */}
+      <div
+        className="rounded-[24px] border mb-8 flex flex-col md:flex-row items-stretch"
+        style={{
+          backgroundColor: '#1e1e1e',
+          borderColor: 'rgba(255,255,255,0.05)',
+        }}
       >
-        <div className="absolute inset-0 bg-white/40 pointer-events-none" aria-hidden />
-        <div className="relative z-10 text-slate-900 mb-8">
-          <h2 className="text-2xl font-bold mb-1">Distribuição de Chamadas</h2>
-          <p className="text-slate-700 text-sm">
-            Visão geral das chamadas no período
-          </p>
-        </div>
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-5 gap-4">
-          {HERO_STATS.map((stat) => (
-            <div
-              key={stat.label}
-              className="glass-card p-6 rounded-2xl border border-slate-200/80"
-            >
-              <div className="flex items-center gap-2">
-                <p className="text-2xl md:text-3xl font-bold text-slate-900">
-                  {stat.value}
-                </p>
-                {stat.sub && (
-                  <span className="text-xs text-slate-600 font-medium">
-                    {stat.sub}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-slate-600 mt-1">
-                {stat.label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="mb-8">
-        <ObjectionAnalytics />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold">Visão de Chamadas</h3>
-            <button type="button" className="text-slate-400" aria-label="Mais">
-              <span className="material-icons-outlined">more_horiz</span>
-            </button>
-          </div>
-          <div className="flex items-center justify-around py-4">
-            <div className="relative w-40 h-40">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
-                <circle
-                  className="dark:stroke-slate-800"
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="70"
-                  stroke="#e2e8f0"
-                  strokeWidth="20"
-                />
-                <circle
-                  className="transition-all duration-500"
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="70"
-                  stroke="#5e5ce6"
-                  strokeDasharray="440"
-                  strokeDashoffset="110"
-                  strokeWidth="20"
-                />
-                <circle
-                  className="transition-all duration-500"
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="70"
-                  stroke="#00d2ff"
-                  strokeDasharray="440"
-                  strokeDashoffset="380"
-                  strokeWidth="20"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold">75%</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary" />
-                <div>
-                  <p className="text-xs text-slate-500">Objetivo atingido</p>
-                  <p className="text-sm font-bold">924</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                <div>
-                  <p className="text-xs text-slate-500">Em andamento</p>
-                  <p className="text-sm font-bold">310</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold">Chamadas por Semana</h3>
-            <button type="button" className="text-slate-400" aria-label="Mais">
-              <span className="material-icons-outlined">more_horiz</span>
-            </button>
-          </div>
-          <div className="flex items-end justify-between h-40 gap-2 px-2">
-            {[40, 60, 50, 85, 45, 65, 30].map((h, i) => (
+        {METRICS.map((m, i) => (
+          <div key={m.label} className="flex flex-1 flex-col md:flex-row min-w-0">
+            {i > 0 && (
               <div
-                key={i}
-                className={`w-full rounded-t-lg chart-bar flex-1 ${i === 3 ? 'bg-primary' : 'bg-indigo-100 dark:bg-indigo-900/30'
+                className="hidden md:flex shrink-0 w-px self-stretch items-center justify-center py-4"
+                aria-hidden
+              >
+                <svg
+                  className="w-px"
+                  style={{ height: '70%' }}
+                  viewBox="0 0 1 100"
+                  preserveAspectRatio="none"
+                >
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="100"
+                    stroke="rgba(148, 163, 184, 0.5)"
+                    strokeWidth="1"
+                  />
+                </svg>
+              </div>
+            )}
+            {i > 0 && (
+              <div className="md:hidden w-full h-px shrink-0 bg-slate-500/50" aria-hidden />
+            )}
+            <div
+              className="flex-1 p-6 flex flex-col justify-center min-w-0 animate-chart-in opacity-0"
+              style={{ animationDelay: `${i * 80}ms` }}
+            >
+              <div className="flex items-center gap-1 mb-2">
+                <span
+                  className={`material-icons-outlined text-lg ${
+                    m.positive ? '' : 'rotate-180'
                   }`}
-                style={{ height: `${h}%` }}
-              />
-            ))}
+                  style={{ color: m.positive ? NEON_GREEN : '#ef4444' }}
+                >
+                  arrow_drop_up
+                </span>
+                <span
+                  className="text-xs font-bold"
+                  style={{ color: m.positive ? NEON_GREEN : '#ef4444' }}
+                >
+                  {m.change}
+                </span>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-1">{m.value}</h3>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-gray-500 text-sm">{m.label}</p>
+                <svg
+                  className="w-16 h-8 shrink-0 overflow-visible"
+                  viewBox="-2 2 64 26"
+                  preserveAspectRatio="xMidYMid meet"
+                  style={{ filter: `drop-shadow(0 0 4px ${m.color})` }}
+                >
+                  <path
+                    className="chart-path animate-chart-path"
+                    d={m.path}
+                    fill="none"
+                    stroke={m.color}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    pathLength={100}
+                    style={{ animationDelay: `${200 + i * 80}ms` }}
+                  />
+                </svg>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between mt-4 text-[10px] text-slate-400 font-medium">
-            <span>Seg</span>
-            <span>Ter</span>
-            <span>Qua</span>
-            <span>Qui</span>
-            <span>Sex</span>
-            <span>Sáb</span>
-            <span>Dom</span>
+        ))}
+      </div>
+
+      {/* Estatística de Chamadas (gráfico linha) */}
+      <div
+        className="p-6 rounded-[24px] border mb-8 animate-chart-in opacity-0"
+        style={{
+          backgroundColor: '#1e1e1e',
+          borderColor: 'rgba(255,255,255,0.05)',
+          animationDelay: '320ms',
+        }}
+      >
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-lg font-bold text-white">
+            Estatística de Chamadas
+          </h2>
+          <div className="flex gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: NEON_PINK }}
+              />
+              <span className="text-xs text-gray-400">Anterior</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: NEON_BLUE }}
+              />
+              <span className="text-xs text-gray-400">Atual</span>
+            </div>
+            <select
+              className="bg-black/20 border-none rounded-lg text-xs py-1.5 px-3 text-gray-400 focus:ring-0 focus:outline-none"
+              defaultValue="monthly"
+            >
+              <option value="monthly">Mensal</option>
+              <option value="weekly">Semanal</option>
+            </select>
           </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold">Chamadas Mensais</h3>
-            <button type="button" className="text-slate-400" aria-label="Mais">
-              <span className="material-icons-outlined">more_horiz</span>
-            </button>
-          </div>
-          <div className="h-40 relative flex items-end">
-            <svg className="w-full overflow-visible" viewBox="0 0 400 100">
-              <defs>
-                <linearGradient
-                  id="grad1"
-                  x1="0%"
-                  x2="0%"
-                  y1="0%"
-                  y2="100%"
-                >
-                  <stop
-                    offset="0%"
-                    style={{ stopColor: 'rgba(94, 92, 230, 0.4)' }}
+        <div
+          className="w-full aspect-[4/1] min-h-[200px] max-h-[320px] relative cursor-crosshair"
+          onMouseMove={(e) => {
+            const svg = chartRef.current
+            if (!svg) return
+            const rect = svg.getBoundingClientRect()
+            const x = ((e.clientX - rect.left) / rect.width) * CHART_WIDTH
+            const plotX = x - CHART_MARGIN_LEFT
+            if (plotX < 0 || plotX > PLOT_WIDTH) {
+              setChartTooltip(null)
+              return
+            }
+            const index = Math.min(
+              7,
+              Math.max(0, Math.round((plotX / PLOT_WIDTH) * 7))
+            )
+            setChartTooltip({
+              index,
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            })
+          }}
+          onMouseLeave={() => setChartTooltip(null)}
+        >
+          <svg
+            ref={chartRef}
+            className="w-full h-full"
+            viewBox={`0 0 ${CHART_WIDTH} ${CHART_VIEW_HEIGHT}`}
+          >
+            <defs>
+              <linearGradient id="grad-pink" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={NEON_PINK} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={NEON_PINK} stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="grad-blue" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={NEON_BLUE} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={NEON_BLUE} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {(() => {
+              const { valueToY, yTickValues } = getChartScale(
+                LINE_CHART_PREVIOUS,
+                LINE_CHART_CURRENT
+              )
+              return (
+                <>
+                  {/* Eixo Y: linha, ticks e labels */}
+                  <line
+                    x1={CHART_MARGIN_LEFT - 2}
+                    y1={CHART_PADDING}
+                    x2={CHART_MARGIN_LEFT - 2}
+                    y2={CHART_HEIGHT - CHART_PADDING}
+                    stroke="rgba(148, 163, 184, 0.4)"
+                    strokeWidth="1"
                   />
-                  <stop
-                    offset="100%"
-                    style={{ stopColor: 'rgba(94, 92, 230, 0)' }}
+                  {yTickValues.map((v) => {
+                    const y = valueToY(v)
+                    return (
+                      <g key={v}>
+                        <line
+                          x1={CHART_MARGIN_LEFT - 2}
+                          y1={y}
+                          x2={CHART_WIDTH}
+                          y2={y}
+                          stroke="rgba(148, 163, 184, 0.12)"
+                          strokeWidth="1"
+                          strokeDasharray="4 4"
+                        />
+                        <text
+                          x={CHART_MARGIN_LEFT - 8}
+                          y={y}
+                          textAnchor="end"
+                          dominantBaseline="middle"
+                          className="fill-gray-500 text-[10px] font-semibold"
+                        >
+                          {v}
+                        </text>
+                      </g>
+                    )
+                  })}
+                  {/* Eixo X: linha e ticks */}
+                  <line
+                    x1={CHART_MARGIN_LEFT}
+                    y1={CHART_HEIGHT - CHART_PADDING}
+                    x2={CHART_WIDTH}
+                    y2={CHART_HEIGHT - CHART_PADDING}
+                    stroke="rgba(148, 163, 184, 0.4)"
+                    strokeWidth="1"
                   />
-                </linearGradient>
-              </defs>
+                  {MONTH_LABELS.map((label, i) => {
+                    const tickX =
+                      CHART_MARGIN_LEFT + (PLOT_WIDTH * i) / (MONTH_LABELS.length - 1)
+                    return (
+                      <g key={label}>
+                        <line
+                          x1={tickX}
+                          y1={CHART_HEIGHT - CHART_PADDING}
+                          x2={tickX}
+                          y2={CHART_HEIGHT}
+                          stroke="rgba(148, 163, 184, 0.25)"
+                          strokeWidth="1"
+                        />
+                        <text
+                          x={tickX}
+                          y={CHART_VIEW_HEIGHT - 6}
+                          textAnchor="middle"
+                          dominantBaseline="auto"
+                          className="fill-gray-500 text-[10px] font-bold uppercase tracking-widest"
+                        >
+                          {label}
+                        </text>
+                      </g>
+                    )
+                  })}
+                </>
+              )
+            })()}
+            <g transform={`translate(${CHART_MARGIN_LEFT}, 0)`}>
               <path
-                d="M0,80 C50,80 100,20 150,50 C200,80 250,10 300,40 C350,70 400,50 400,100 L0,100 Z"
-                fill="url(#grad1)"
+                className="animate-chart-area"
+                d={areaPathFromData(
+                  LINE_CHART_PREVIOUS,
+                  PLOT_WIDTH,
+                  CHART_HEIGHT,
+                  CHART_PADDING
+                )}
+                fill="url(#grad-pink)"
               />
               <path
-                d="M0,80 C50,80 100,20 150,50 C200,80 250,10 300,40 C350,70 400,50"
+                className="chart-path animate-chart-path"
+                d={linePathFromData(
+                  LINE_CHART_PREVIOUS,
+                  PLOT_WIDTH,
+                  CHART_HEIGHT,
+                  CHART_PADDING
+                )}
                 fill="none"
-                stroke="#5e5ce6"
-                strokeWidth="3"
+                stroke={NEON_PINK}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                pathLength={100}
+                style={{
+                  filter: `drop-shadow(0 0 4px ${NEON_PINK})`,
+                  animationDelay: '0.4s',
+                }}
               />
-              <circle cx="270" cy="20" fill="#5e5ce6" r="4" />
-            </svg>
-          </div>
-          <div className="flex justify-center gap-6 mt-6">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              <span className="text-xs font-bold">
-                Este mês <span className="text-slate-400 font-normal">312</span>
-              </span>
+              <path
+                className="chart-path animate-chart-path"
+                d={linePathFromData(
+                  LINE_CHART_CURRENT,
+                  PLOT_WIDTH,
+                  CHART_HEIGHT,
+                  CHART_PADDING
+                )}
+                fill="none"
+                stroke={NEON_BLUE}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                pathLength={100}
+                style={{
+                  filter: `drop-shadow(0 0 4px ${NEON_BLUE})`,
+                  animationDelay: '0.55s',
+                }}
+              />
+            </g>
+          </svg>
+          {chartTooltip !== null && (
+            <div
+              className="absolute z-10 pointer-events-none rounded-xl border p-4 shadow-xl backdrop-blur-sm"
+              style={{
+                left: chartTooltip.x + 12,
+                top: chartTooltip.y - 8,
+                backgroundColor: 'rgba(30, 30, 30, 0.95)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                minWidth: 200,
+              }}
+            >
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+                {MONTH_LABELS[chartTooltip.index]}
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Anterior</span>
+                  <span className="font-bold text-white">
+                    {LINE_CHART_PREVIOUS[chartTooltip.index]} chamadas
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Atual</span>
+                  <span className="font-bold text-white">
+                    {LINE_CHART_CURRENT[chartTooltip.index]} chamadas
+                  </span>
+                </div>
+                <div className="border-t border-white/10 pt-2 mt-2 flex justify-between gap-4">
+                  <span className="text-gray-400">Meta do mês</span>
+                  <span className="font-semibold text-white">150</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Taxa conversão</span>
+                  <span className="font-semibold text-neon-green">
+                    {Math.round(
+                      (LINE_CHART_CURRENT[chartTooltip.index] / 150) * 100
+                    )}
+                    %
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400" />
-              <span className="text-xs font-bold">
-                Mês anterior <span className="text-slate-400 font-normal">289</span>
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-8 relative z-10">
-            <div>
-              <h3 className="font-bold text-xl mb-1">Overview</h3>
-              <p className="text-xs text-indigo-500 font-medium">
-                +8,06% <span className="text-slate-400">vs. mês anterior</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-            >
-              <span className="material-icons-outlined text-sm">ios_share</span>
-              Exportar
-            </button>
-          </div>
-          <div className="h-64 pl-0 mb-6">
-            <Overview />
-          </div>
-          <div className="relative z-10">
-            <p className="text-3xl font-bold">1.234</p>
-            <p className="text-xs text-slate-500 font-medium">
-              Total de chamadas no período
-            </p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold">Chamadas Recentes</h3>
-            <button type="button" className="text-slate-400" aria-label="Mais">
-              <span className="material-icons-outlined">more_horiz</span>
-            </button>
-          </div>
-          <RecentCalls />
-          <a
+      {/* Top Leader / Performance */}
+      <div
+        className="p-6 rounded-[24px] border mb-8 animate-chart-in opacity-0"
+        style={{
+          backgroundColor: '#1e1e1e',
+          borderColor: 'rgba(255,255,255,0.05)',
+          animationDelay: '480ms',
+        }}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-bold text-white">Top Performance</h2>
+          <Link
             href="/calls"
-            className="w-full mt-8 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-primary rounded-xl text-sm font-bold hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors flex items-center justify-center gap-2"
+            className="text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
+            style={{ color: NEON_PINK }}
           >
-            Ver todas as chamadas
-            <span className="material-icons-outlined text-[18px]">
-              arrow_forward
-            </span>
-          </a>
+            Ver tudo
+          </Link>
         </div>
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-gray-500 text-xs font-bold uppercase tracking-widest border-b border-white/5">
+              <th className="pb-4 font-bold">Usuário</th>
+              <th className="pb-4 font-bold">Meta</th>
+              <th className="pb-4 font-bold">Conversão</th>
+              <th className="pb-4 font-bold">Performance</th>
+            </tr>
+          </thead>
+          <tbody className="text-sm">
+            {TOP_LEADERS.map((row, idx) => (
+              <tr
+                key={row.name}
+                className="border-b border-white/5 last:border-0 animate-chart-in opacity-0"
+                style={{ animationDelay: `${560 + idx * 80}ms` }}
+              >
+                <td className="py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-700 border border-white/10 flex items-center justify-center text-white text-xs font-bold">
+                      {row.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-bold text-white">{row.name}</div>
+                      <div className="text-[10px] text-gray-500">{row.role}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-4 font-medium text-white">{row.target}</td>
+                <td
+                  className="py-4 font-bold"
+                  style={{ color: NEON_GREEN }}
+                >
+                  {row.conversion}
+                </td>
+                <td className="py-4">
+                  <div className="w-24 h-1.5 bg-black/40 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700 ease-out"
+                      style={{
+                        width: `${progressReady ? row.performance : 0}%`,
+                        backgroundColor: row.color,
+                        boxShadow: `0 0 8px ${row.color}`,
+                      }}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mb-8 animate-chart-in opacity-0" style={{ animationDelay: '640ms' }}>
+        <ObjectionAnalytics />
       </div>
     </>
   )

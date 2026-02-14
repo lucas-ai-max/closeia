@@ -28,7 +28,18 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
   --radius: 1rem;
-  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-urbanist), "Urbanist", ui-sans-serif, system-ui, sans-serif;
+  /* Zerologic / dashboard dark theme */
+  --color-bg-deep: #121212;
+  --color-sidebar-bg: #000000;
+  --color-card-dark: #1e1e1e;
+  --color-neon-pink: #ff007a;
+  --color-neon-blue: #00d1ff;
+  --color-neon-green: #00ff94;
+  --color-neon-orange: #ff8a00;
+  --color-neon-purple: #9d00ff;
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-divider: rgba(255, 255, 255, 0.1);
 }
 
 :root {
@@ -112,6 +123,76 @@
   background: rgba(30, 41, 59, 0.7);
 }
 
+/* Zerologic glass (dark dashboard) */
+.glass-card-dark {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+}
+
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+.glow-pink { filter: drop-shadow(0 0 4px var(--color-neon-pink)); }
+.glow-blue { filter: drop-shadow(0 0 4px var(--color-neon-blue)); }
+.glow-green { filter: drop-shadow(0 0 4px var(--color-neon-green)); }
+.glow-orange { filter: drop-shadow(0 0 4px var(--color-neon-orange)); }
+.glow-purple { filter: drop-shadow(0 0 4px var(--color-neon-purple)); }
+
 .chart-bar {
   transition: height 0.3s ease;
+}
+
+.chart-path {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* Animações de entrada para gráficos */
+@keyframes chart-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes chart-path-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-area-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-chart-in {
+  animation: chart-fade-in 0.5s ease-out forwards;
+}
+
+.animate-chart-path {
+  stroke-dasharray: 100;
+  animation: chart-path-draw 0.8s ease-out forwards;
+}
+
+.animate-chart-area {
+  animation: chart-area-reveal 0.6s ease-out 0.2s forwards;
+  opacity: 0;
 }

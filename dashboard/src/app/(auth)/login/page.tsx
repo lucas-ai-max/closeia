@@ -5,10 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { useTheme } from '@/components/theme-provider'
 
-const INPUT_CLASS =
-  'mt-1 block w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100'
+const NEON_PINK = '#ff007a'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,7 +14,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
-  const { theme, toggleTheme } = useTheme()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,38 +36,41 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div
+      className="flex min-h-screen"
+      style={{ backgroundColor: '#121212' }}
+    >
       {/* Form side */}
       <div className="w-full lg:w-1/2 flex flex-col">
-        <div className="p-6 flex justify-end">
-          <button
-            type="button"
-            aria-label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-            onClick={toggleTheme}
-            className="p-2 text-slate-500 hover:bg-white dark:hover:bg-slate-800 rounded-xl shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all"
-          >
-            <span className="material-icons-outlined block dark:hidden">dark_mode</span>
-            <span className="material-icons-outlined hidden dark:block">light_mode</span>
-          </button>
-        </div>
         <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
           <div className="w-full max-w-md">
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800">
+            <div
+              className="p-8 rounded-[24px] border bg-card-dark"
+              style={{ borderColor: 'rgba(255,255,255,0.05)' }}
+            >
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{
+                    backgroundColor: NEON_PINK,
+                    boxShadow: '0 0 15px rgba(255,0,122,0.4)',
+                  }}
+                >
                   <span className="text-white font-bold text-xl">C</span>
                 </div>
-                <span className="text-2xl font-bold tracking-tight">CloseIA</span>
+                <span className="text-2xl font-bold tracking-tight text-white">
+                  CloseIA
+                </span>
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+              <h1 className="text-2xl font-bold text-white mb-1">
                 Bem-vindo de volta
               </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">
+              <p className="text-gray-500 text-sm mb-8">
                 Entre com suas credenciais para acessar o dashboard
               </p>
               <form className="space-y-5" onSubmit={handleLogin}>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <label className="block text-sm font-medium text-gray-400 mb-1">
                     Email
                   </label>
                   <input
@@ -78,12 +78,12 @@ export default function LoginPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={INPUT_CLASS}
+                    className="w-full px-4 py-3 rounded-xl text-white placeholder:text-gray-600 border border-white/10 bg-black/30 focus:outline-none focus:ring-2 focus:ring-neon-pink focus:border-transparent transition-colors"
                     placeholder="seu@email.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <label className="block text-sm font-medium text-gray-400 mb-1">
                     Senha
                   </label>
                   <input
@@ -91,14 +91,18 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={INPUT_CLASS}
+                    className="w-full px-4 py-3 rounded-xl text-white placeholder:text-gray-600 border border-white/10 bg-black/30 focus:outline-none focus:ring-2 focus:ring-neon-pink focus:border-transparent transition-colors"
                     placeholder="••••••••"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 transition-opacity"
+                  className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white border-0 focus:outline-none focus:ring-2 focus:ring-neon-pink focus:ring-offset-2 focus:ring-offset-card-dark disabled:opacity-50 transition-opacity"
+                  style={{
+                    backgroundColor: NEON_PINK,
+                    boxShadow: '0 0 20px rgba(255,0,122,0.3)',
+                  }}
                 >
                   {loading ? 'Entrando...' : 'Entrar'}
                 </button>
@@ -106,10 +110,10 @@ export default function LoginPage() {
               <div className="mt-6">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-slate-200 dark:border-slate-700" />
+                    <div className="w-full border-t border-white/10" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-3 bg-white dark:bg-slate-900 text-slate-500">
+                    <span className="px-3 bg-card-dark text-gray-500">
                       Ou continue com
                     </span>
                   </div>
@@ -117,7 +121,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
-                  className="mt-6 w-full flex justify-center items-center gap-2 py-3 px-4 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-colors"
+                  className="mt-6 w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-medium text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 focus:outline-none transition-colors"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path
@@ -140,11 +144,12 @@ export default function LoginPage() {
                   Google
                 </button>
               </div>
-              <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-8 text-center text-sm text-gray-500">
                 Não tem uma conta?{' '}
                 <Link
                   href="/register"
-                  className="font-semibold text-primary hover:opacity-90 transition-opacity"
+                  className="font-semibold transition-opacity hover:opacity-90"
+                  style={{ color: NEON_PINK }}
                 >
                   Criar conta
                 </Link>
@@ -153,23 +158,34 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-      {/* Right side - branding (same as dashboard hero) */}
+      {/* Right side - branding */}
       <div
         className="hidden lg:flex lg:w-1/2 rounded-l-3xl overflow-hidden relative bg-cover bg-top bg-no-repeat"
         style={{ backgroundImage: 'url(/bg2.jpg)' }}
       >
-        <div className="absolute inset-0 bg-white/30 pointer-events-none" aria-hidden />
-        <div className="relative z-10 flex flex-col justify-center p-12 max-w-md">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">C</span>
-            </div>
-            <span className="text-3xl font-bold tracking-tight text-slate-900">CloseIA</span>
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ backgroundColor: 'rgba(0,0,0,0.72)' }}
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse 70% 50% at 50% 50%, rgba(0,0,0,0.75) 0%, transparent 70%)',
+          }}
+          aria-hidden
+        />
+        <div className="relative z-10 flex flex-col items-start justify-center text-left p-12 w-full max-w-lg">
+          <h2
+            className="text-4xl font-bold text-white mb-4 md:text-5xl"
+            style={{ textShadow: '0 2px 12px rgba(0,0,0,0.8)' }}
+          >
             Potencialize suas vendas
           </h2>
-          <p className="text-slate-700 text-lg">
+          <p
+            className="text-white text-xl font-medium max-w-md md:text-2xl leading-relaxed"
+            style={{ textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}
+          >
             Coaching em tempo real powered by IA. Scripts, métricas e equipe em um só lugar.
           </p>
         </div>

@@ -19,6 +19,10 @@ import type { Database } from '@/types/database'
 import { ChevronLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 
+const NEON_PINK = '#ff007a'
+const CARD_STYLE = { backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }
+const INPUT_CLASS = 'flex h-10 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff007a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1e1e1e] disabled:opacity-50'
+
 type ScriptRow = Database['public']['Tables']['scripts']['Row']
 
 export default function ScriptEditorPage() {
@@ -100,28 +104,45 @@ export default function ScriptEditorPage() {
         mutation.mutate(data)
     }
 
-    if (isLoadingScript) return <div className="p-8">Carregando...</div>
+    if (isLoadingScript) {
+        return (
+            <div
+                className="rounded-[24px] border p-8"
+                style={CARD_STYLE}
+            >
+                <p className="text-gray-500 text-sm">Carregando...</p>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                    <Button variant="ghost" size="icon" asChild>
+                    <Button variant="ghost" size="icon" asChild className="text-gray-400 hover:text-white hover:bg-white/10">
                         <Link href="/scripts">
                             <ChevronLeft className="h-4 w-4" />
                         </Link>
                     </Button>
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight">
+                        <h2 className="text-2xl font-bold tracking-tight text-white">
                             {isNew ? 'Novo Script' : 'Editar Script'}
                         </h2>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-gray-500 text-sm">
                             Configure o comportamento do seu assistente de vendas.
                         </p>
                     </div>
                 </div>
-                <Button onClick={handleSubmit(onSubmit)} disabled={mutation.isPending}>
+                <Button
+                    onClick={handleSubmit(onSubmit)}
+                    disabled={mutation.isPending}
+                    className="font-semibold"
+                    style={{
+                        backgroundColor: NEON_PINK,
+                        boxShadow: '0 0 20px rgba(255,0,122,0.3)',
+                    }}
+                >
                     <Save className="mr-2 h-4 w-4" />
                     {mutation.isPending ? 'Salvando...' : 'Salvar'}
                 </Button>
@@ -129,61 +150,80 @@ export default function ScriptEditorPage() {
 
             {/* Content Tabs */}
             <Tabs defaultValue="general" className="w-full">
-                <TabsList>
-                    <TabsTrigger value="general">Geral</TabsTrigger>
-                    <TabsTrigger value="steps" disabled={isNew}>Etapas do Funil</TabsTrigger>
-                    <TabsTrigger value="objections" disabled={isNew}>Objeções</TabsTrigger>
+                <TabsList className="rounded-xl bg-black/30 p-1 border border-white/10">
+                    <TabsTrigger
+                        value="general"
+                        className="rounded-lg data-[state=active]:bg-card-dark data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-500 data-[state=active]:border-white/10 border border-transparent px-4"
+                    >
+                        Geral
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="steps"
+                        disabled={isNew}
+                        className="rounded-lg data-[state=active]:bg-card-dark data-[state=active]:text-white text-gray-500 data-[state=active]:border-white/10 border border-transparent px-4 disabled:opacity-50"
+                    >
+                        Etapas do Funil
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="objections"
+                        disabled={isNew}
+                        className="rounded-lg data-[state=active]:bg-card-dark data-[state=active]:text-white text-gray-500 data-[state=active]:border-white/10 border border-transparent px-4 disabled:opacity-50"
+                    >
+                        Objeções
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="general" className="space-y-4 mt-4">
-                    <Card>
+                    <Card className="rounded-[24px] border shadow-none" style={CARD_STYLE}>
                         <CardHeader>
-                            <CardTitle>Informações Básicas</CardTitle>
-                            <CardDescription>
+                            <CardTitle className="text-lg font-bold text-white">Informações Básicas</CardTitle>
+                            <CardDescription className="text-gray-500">
                                 Defina o nome e o objetivo deste script.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid gap-2">
-                                <Label htmlFor="name">Nome do Script</Label>
-                                <Input id="name" placeholder="Ex: Venda Consultiva - SaaS" {...register('name')} />
-                                {errors.name && <span className="text-red-500 text-sm">{errors.name.message}</span>}
+                                <Label htmlFor="name" className="text-gray-400">Nome do Script</Label>
+                                <Input
+                                    id="name"
+                                    placeholder="Ex: Venda Consultiva - SaaS"
+                                    className={INPUT_CLASS}
+                                    {...register('name')}
+                                />
+                                {errors.name && <span className="text-red-400 text-sm">{errors.name.message}</span>}
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="description">Descrição</Label>
-                                <Textarea id="description" placeholder="Objetivo do script..." {...register('description')} />
+                                <Label htmlFor="description" className="text-gray-400">Descrição</Label>
+                                <Textarea
+                                    id="description"
+                                    placeholder="Objetivo do script..."
+                                    className={`${INPUT_CLASS} min-h-[100px]`}
+                                    {...register('description')}
+                                />
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="rounded-[24px] border shadow-none" style={CARD_STYLE}>
                         <CardHeader>
-                            <CardTitle>Personalidade da IA</CardTitle>
-                            <CardDescription>
+                            <CardTitle className="text-lg font-bold text-white">Personalidade da IA</CardTitle>
+                            <CardDescription className="text-gray-500">
                                 Como a IA deve se comportar durante a chamada.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="personality">Personalidade</Label>
-                                    <select
-                                        id="personality"
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        {...register('coach_personality')}
-                                    >
+                                    <Label htmlFor="personality" className="text-gray-400">Personalidade</Label>
+                                    <select id="personality" className={INPUT_CLASS} {...register('coach_personality')}>
                                         <option value="Strategic">Estratégico</option>
                                         <option value="Empathetic">Empático</option>
                                         <option value="Aggressive">Agressivo (Challenger)</option>
                                     </select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="intervention">Nível de Intervenção</Label>
-                                    <select
-                                        id="intervention"
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        {...register('intervention_level')}
-                                    >
+                                    <Label htmlFor="intervention" className="text-gray-400">Nível de Intervenção</Label>
+                                    <select id="intervention" className={INPUT_CLASS} {...register('intervention_level')}>
                                         <option value="Low">Baixo (Apenas erros críticos)</option>
                                         <option value="Medium">Médio (Dicas ocasionais)</option>
                                         <option value="High">Alto (Passo a passo)</option>
@@ -195,16 +235,16 @@ export default function ScriptEditorPage() {
                 </TabsContent>
 
                 <TabsContent value="steps">
-                    <Card>
-                        <CardContent className="p-8 text-center text-muted-foreground">
+                    <Card className="rounded-[24px] border shadow-none" style={CARD_STYLE}>
+                        <CardContent className="p-8 text-center text-gray-500">
                             Salve o script primeiro para adicionar etapas.
                         </CardContent>
                     </Card>
                 </TabsContent>
 
                 <TabsContent value="objections">
-                    <Card>
-                        <CardContent className="p-8 text-center text-muted-foreground">
+                    <Card className="rounded-[24px] border shadow-none" style={CARD_STYLE}>
+                        <CardContent className="p-8 text-center text-gray-500">
                             Salve o script primeiro para configurar objeções.
                         </CardContent>
                     </Card>

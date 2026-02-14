@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { Database } from '@/types/database'
 
+const NEON_PINK = '#ff007a'
+
 type ScriptRow = Database['public']['Tables']['scripts']['Row']
 
 export default function ScriptsPage() {
@@ -40,7 +42,17 @@ export default function ScriptsPage() {
     })
 
     if (isLoading) {
-        return <div className="p-8">Carregando scripts...</div>
+        return (
+            <div className="space-y-6">
+                <DashboardHeader title="Scripts" />
+                <div
+                    className="rounded-[24px] border p-8"
+                    style={{ backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }}
+                >
+                    <p className="text-gray-500 text-sm">Carregando scripts...</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -48,13 +60,19 @@ export default function ScriptsPage() {
             <DashboardHeader title="Scripts" />
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Scripts de Vendas</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                    <h2 className="text-2xl font-bold tracking-tight text-white">Scripts de Vendas</h2>
+                    <p className="text-gray-500 text-sm mt-1">
                         Gerencie seus playbooks e roteiros de vendas.
                     </p>
                 </div>
                 <Link href="/scripts/new">
-                    <Button>
+                    <Button
+                        className="font-semibold"
+                        style={{
+                            backgroundColor: NEON_PINK,
+                            boxShadow: '0 0 20px rgba(255,0,122,0.3)',
+                        }}
+                    >
                         <Plus className="mr-2 h-4 w-4" />
                         Novo Script
                     </Button>
@@ -63,32 +81,42 @@ export default function ScriptsPage() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {scripts?.map((script) => (
-                    <Card key={script.id} className="hover:shadow-md transition-shadow">
+                    <Card
+                        key={script.id}
+                        className="rounded-[24px] border shadow-none transition-colors hover:bg-white/5"
+                        style={{ backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }}
+                    >
                         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                            <div className="space-y-1">
-                                <CardTitle className="text-base font-medium">
+                            <div className="space-y-1 min-w-0">
+                                <CardTitle className="text-base font-bold text-white">
                                     {script.name}
                                 </CardTitle>
-                                <CardDescription className="line-clamp-2">
+                                <CardDescription className="line-clamp-2 text-gray-500">
                                     {script.description || 'Sem descrição'}
                                 </CardDescription>
                             </div>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <Button
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 shrink-0 text-gray-400 hover:text-white hover:bg-white/10"
+                                    >
                                         <span className="sr-only">Menu</span>
                                         <MoreVertical className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem asChild>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="rounded-xl border bg-card-dark border-white/10 min-w-[160px]"
+                                >
+                                    <DropdownMenuItem asChild className="text-gray-300 focus:bg-white/10 focus:text-white">
                                         <Link href={`/scripts/${script.id}`}>
                                             <Edit className="mr-2 h-4 w-4" />
                                             Editar
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                        className="text-red-600"
+                                        className="text-red-400 focus:bg-red-500/10 focus:text-red-400"
                                         onClick={() => {
                                             if (confirm('Tem certeza?')) {
                                                 deleteMutation.mutate(script.id)
@@ -102,21 +130,30 @@ export default function ScriptsPage() {
                             </DropdownMenu>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex items-center text-sm text-muted-foreground mt-4">
-                                <FileText className="mr-2 h-4 w-4" />
-                                {script.coach_personality} • {script.intervention_level}
+                            <div className="flex items-center text-sm text-gray-500 mt-4">
+                                <FileText className="mr-2 h-4 w-4 shrink-0" />
+                                <span className="truncate">{script.coach_personality} • {script.intervention_level}</span>
                             </div>
                         </CardContent>
                     </Card>
                 ))}
 
                 {scripts?.length === 0 && (
-                    <div className="col-span-full flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg text-muted-foreground">
-                        <FileText className="h-12 w-12 mb-4 opacity-20" />
-                        <p>Nenhum script criado ainda.</p>
-                        <Button variant="link" className="mt-2">
-                            Criar meu primeiro script
-                        </Button>
+                    <div
+                        className="col-span-full flex flex-col items-center justify-center p-12 rounded-[24px] border border-dashed text-gray-500"
+                        style={{ borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(30,30,30,0.5)' }}
+                    >
+                        <FileText className="h-12 w-12 mb-4 opacity-40" />
+                        <p className="text-sm">Nenhum script criado ainda.</p>
+                        <Link href="/scripts/new">
+                            <Button
+                                variant="link"
+                                className="mt-2 font-semibold"
+                                style={{ color: NEON_PINK }}
+                            >
+                                Criar meu primeiro script
+                            </Button>
+                        </Link>
                     </div>
                 )}
             </div>
