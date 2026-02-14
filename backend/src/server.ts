@@ -27,7 +27,18 @@ function debugLog(msg: string) {
 
 // Register Plugins
 server.register(cors, {
-    origin: env.CORS_ORIGIN,
+    origin: (origin, cb) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return cb(null, true);
+
+        // Check if origin matches allowed list
+        const allowedOrigins = env.CORS_ORIGIN.split(',');
+        if (allowedOrigins.indexOf(origin) !== -1 || env.CORS_ORIGIN === '*') {
+            cb(null, true);
+        } else {
+            cb(new Error('Not allowed by CORS'), false);
+        }
+    },
 });
 
 server.register(websocket);
