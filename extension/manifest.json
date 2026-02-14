@@ -1,47 +1,45 @@
 {
-  "manifest_version": 3,
-  "name": "Sales Copilot AI",
-  "version": "1.0.0",
-  "description": "Coach de vendas em tempo real com IA",
-  "permissions": [
-    "activeTab",
-    "tabCapture",
-    "offscreen",
-    "storage",
-    "tabs"
-  ],
-  "host_permissions": [
-    "https://meet.google.com/*",
-    "https://*.zoom.us/*",
-    "https://app.zoom.us/*"
-  ],
-  "background": {
-    "service_worker": "src/background/index.ts",
-    "type": "module"
-  },
-  "content_scripts": [
-    {
-      "matches": [
+    "manifest_version": 3,
+    "name": "Sales Copilot AI",
+    "version": "1.0.0",
+    "description": "Coach de vendas em tempo real com IA",
+    "permissions": [
+        "activeTab",
+        "tabCapture",
+        "offscreen",
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
         "https://meet.google.com/*",
-        "https://*.zoom.us/*"
-      ],
-      "js": [
-        "src/content/index.tsx"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
-  "action": {
-    "default_title": "Sales Copilot AI"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "src/index.css"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+        "https://*.zoom.us/*",
+        "https://app.zoom.us/*"
+    ],
+    "background": {
+        "service_worker": "src/background/index.ts",
+        "type": "module"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://meet.google.com/*",
+                "https://*.zoom.us/*"
+            ],
+            "js": [
+                "src/content/index.tsx"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "action": {},
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "src/index.css"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ]
 }
