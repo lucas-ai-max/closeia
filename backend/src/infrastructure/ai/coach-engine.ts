@@ -35,33 +35,36 @@ export class CoachEngine {
 
         // 1. Checar cache de objeções (instantâneo)
         // In real usage, objections should be loaded from session or DB
-        const matchedObjection = this.objectionMatcher.match(chunk.text, []);
+        try {
+            const matchedObjection = this.objectionMatcher.match(chunk.text, []);
 
-        if (matchedObjection && matchedObjection.score > 0.7) {
-            // Check success rate
-            let isTop = false;
-            try {
-                const rate = await this.successTracker.getSuccessRate(matchedObjection.id, session.scriptId);
-                // If success rate is > 40% (example threshold) or it is the best performing one
-                if (rate > 0.4) {
-                    isTop = true;
+            if (matchedObjection && matchedObjection.score > 0.7) {
+                // Check success rate
+                let isTop = false;
+                try {
+                    const rate = await this.successTracker.getSuccessRate(matchedObjection.id, session.scriptId);
+                    if (rate > 0.4) {
+                        isTop = true;
+                    }
+                } catch (e) {
+                    console.error("Error fetching success rate", e);
                 }
-            } catch (e) {
-                console.error("Error fetching success rate", e);
+
+                events.push({
+                    type: 'objection',
+                    content: matchedObjection.coachingTip,
+                    urgency: isTop ? 'high' : 'medium',
+                    isTopRecommendation: isTop,
+                    metadata: {
+                        objection: matchedObjection.triggerPhrase,
+                        mentalTrigger: matchedObjection.mentalTrigger,
+                        suggestedResponse: matchedObjection.suggestedResponse,
+                        successRate: isTop ? 'High' : 'Normal'
+                    }
+                });
             }
-
-            events.push({
-                type: 'objection',
-                content: matchedObjection.coachingTip,
-                urgency: isTop ? 'high' : 'medium', // Higher urgency for top tips
-                isTopRecommendation: isTop,
-                metadata: {
-                    objection: matchedObjection.triggerPhrase,
-                    mentalTrigger: matchedObjection.mentalTrigger,
-                    suggestedResponse: matchedObjection.suggestedResponse,
-                    successRate: isTop ? 'High' : 'Normal'
-                }
-            });
+        } catch (matchError) {
+            console.error("Objection matching failed (non-fatal):", matchError);
         }
 
         // 2. Checar triggers para LLM

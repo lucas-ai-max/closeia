@@ -127,9 +127,9 @@ onWsMessage(async (data: any) => {
         }
     }
 
-    // Handle coaching messages from backend (fallback or non-objection coaching)
-    if (data.type === 'coach:message') {
-        console.log('📡 BACKEND COACHING:', data.payload?.message?.substring(0, 50));
+    // Handle coaching messages from backend (SPIN Coach sends 'COACHING_MESSAGE', legacy sends 'coach:message')
+    if (data.type === 'coach:message' || data.type === 'COACHING_MESSAGE') {
+        console.log('📡 BACKEND COACHING:', JSON.stringify(data.payload)?.substring(0, 80));
         const state = await getState();
         if (state.currentTabId) {
             chrome.tabs.sendMessage(state.currentTabId, {
@@ -306,8 +306,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
     };
 
+    // For QUERY_ACTIVE_SPEAKER, we actually return a response, so we must return true
+    if (message.type === 'QUERY_ACTIVE_SPEAKER') {
+        handleAsync();
+        return true;
+    }
+
+    // For all other messages, we just process them without keeping the channel open
     handleAsync();
-    return true; // Keep channel open
+    return false;
 });
 
 async function handleOffscreenReady() {

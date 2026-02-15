@@ -26,6 +26,7 @@ import { ResponseParser } from '../ai/response-parser.js';
 import { PostCallAnalyzer } from '../ai/post-call-analyzer.js';
 import { WhisperClient } from '../ai/whisper-client.js';
 import { ObjectionSuccessTracker } from '../ai/objection-success-tracker.js';
+import { SummaryAgent } from '../ai/summary-agent.js';
 
 // Types
 export interface CallSession {
@@ -36,6 +37,7 @@ export interface CallSession {
     currentStep: number;
     // AI State
     lastCoachingAt?: number;
+    lastSummaryAt?: number; // NEW: Timer for summary
     leadProfile?: any;
     lastCoaching?: string;
     startupTime?: number;
@@ -175,6 +177,7 @@ const coachEngine = new CoachEngine(
 
 const postCallAnalyzer = new PostCallAnalyzer(openaiClient);
 const whisperClient = new WhisperClient();
+const summaryAgent = new SummaryAgent(openaiClient);
 
 export async function websocketRoutes(fastify: FastifyInstance) {
     fastify.get('/ws/call', { websocket: true }, async (socket, req) => {
@@ -203,16 +206,16 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         socket.on('message', async (message: string) => {
             try {
                 const msgString = message.toString();
-                console.log('👀 RAW SOCKET MESSAGE SERVER-SIDE:', msgString.substring(0, 100));
+                // console.log('👀 RAW SOCKET MESSAGE SERVER-SIDE:', msgString.substring(0, 100));
 
                 if (!msgString.includes('media:stream') && !msgString.includes('audio:segment')) {
-                    console.log('RAW MSG RECEIVED:', msgString);
+                    // console.log('RAW MSG RECEIVED:', msgString);
                 }
                 const event = JSON.parse(msgString);
 
                 // IGNORE media:stream logs to avoid noise, but log everything else
                 if (event.type !== 'media:stream' && event.type !== 'audio:segment') {
-                    logger.info(`📨 WS EVENT RECEIVED: ${event.type}`);
+                    // logger.info(`📨 WS EVENT RECEIVED: ${event.type}`);
                 }
 
                 if (!callId && event.type !== 'call:start') {
@@ -220,7 +223,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         // Silent ignore or debug log
                         // logger.debug('⚠️ media:stream received before call:start (Ignored)');
                     } else {
-                        logger.warn(`⚠️ Received ${event.type} before call:start (callId is null)`);
+                        // logger.warn(`⚠️ Received ${event.type} before call:start (callId is null)`);
                     }
                 }
 
@@ -328,7 +331,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             logger.info({ payload: event.payload }, '📞 handleCallStart initiated');
 
             try {
-                console.log('📞 handleCallStart CALLED with:', event.payload);
                 const { scriptId, platform, leadName, externalId } = event.payload;
 
                 // 0. Check if call already exists for this connection (Idempotency)
@@ -381,7 +383,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
                         // Reconstruct Session Data
                         // Try Redis first
-                        let currentSession = await redis.get(`call:${callId}:session`);
+                        let currentSession = await redis.get<CallSession>(`call:${callId}:session`);
                         if (!currentSession) {
                             // Reconstruct from DB
                             logger.info(`♻️ Reconstructing session from DB for call ${callId}`);
@@ -429,7 +431,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     logger.info(`🔄 Found existing ACTIVE call: ${existingCall.id}. Attempting to resume...`);
 
                     // Check if session data exists in Redis
-                    const existingSession = await redis.get(`call:${existingCall.id}:session`);
+                    const existingSession = await redis.get<CallSession>(`call:${existingCall.id}:session`);
 
                     if (existingSession) {
                         logger.info(`✅ Resumed session for call ${existingCall.id}`);
@@ -522,10 +524,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     userId: userId,
                     scriptId: finalScriptId,
                     platform: platform,
-                    startedAt: new Date(),
+                    startedAt: new Date().getTime(),
                     transcript: [],
                     currentStep: 1,
                     lastCoachingAt: 0,
+                    lastSummaryAt: 0,
                     leadName: leadName || bufferedLeadName || undefined
                 };
 
@@ -579,24 +582,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             // 1. Update Session
             sessionData.transcript.push(chunk);
 
-            // 2. Process with AI Engine
-            const events = await coachEngine.processTranscriptChunk(chunk, sessionData);
-
-            // 3. Send AI Events to Client
-            for (const aiEvent of events) {
-                ws.send(JSON.stringify({
-                    type: 'COACHING_MESSAGE', // Mapping to what frontend expects
-                    payload: aiEvent // Frontend should handle this structure
-                }));
-
-                // Update session based on event (e.g. lastCoachingAt)
-                sessionData.lastCoachingAt = Date.now();
-                if (aiEvent.type === 'stage_change' && aiEvent.currentStep) {
-                    sessionData.currentStep = aiEvent.currentStep;
-                }
-            }
-
-            // 4. Persist State
+            // 2. Persist State
             await redis.set(`call:${currentCallId}:session`, sessionData, 3600 * 4);
         }
 
@@ -762,7 +748,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
             const headerHex = audioBuffer.slice(0, 4).toString('hex');
             if (headerHex !== '1a45dfa3') {
-                // logger.warn(`⚠️ Unexpected header: ${headerHex}`);
                 debugLog(`[WARNING] Unexpected header: ${headerHex}`);
             }
 
@@ -771,14 +756,12 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     ? (sessionData?.lastLeadTranscription || "Transcreva o áudio.")
                     : (sessionData?.lastSellerTranscription || "Transcreva o áudio.");
 
-                // LOG SOLICITADO
                 debugLog(`[WHISPER START] Transcribing ${audioBuffer.length} bytes...`);
                 const text = await whisperClient.transcribe(audioBuffer, previousText);
                 debugLog(`[WHISPER END] Result: '${text}'`);
 
                 if (text && text.trim().length > 0) {
                     if (isHallucination(text)) {
-                        // logger.warn(`🚫 Hallucination filtered: "${text}"`);
                         debugLog(`[FILTER] Hallucination: ${text}`);
                         return;
                     }
@@ -786,57 +769,26 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         return;
                     }
 
+                    // 1. Dynamic Speaker Label Resolution
+                    const dynamicSpeaker = event.payload.speakerName;
+                    const currentLeadName = dynamicSpeaker || sessionData?.leadName || bufferedLeadName || 'Cliente';
+                    const speakerLabel = role === 'seller' ? 'Você' : currentLeadName;
+
+                    logger.info(`✨ [${speakerLabel}]: "${text}"`);
+                    debugLog(`[SUCCESS] Transcription: ${text}`);
+
                     if (sessionData) {
                         if (role === 'lead') {
                             sessionData.lastLeadTranscription = text.slice(-200);
                         } else {
                             sessionData.lastSellerTranscription = text.slice(-200);
                         }
-                    }
 
-                    // 1. Dynamic Speaker Label Resolution
-                    const dynamicSpeakerName = (audioBuffer as any).speakerName; // This comes from metadata attached before buffer processing, OR we need to pass it in transcribe?
-                    // Wait, audioBuffer is a Buffer array. We can't attach properties to it easily if it's just raw data.
-                    // The 'speakerName' comes in the WebSocket message 'audio:segment'.
-                    // We need to store it when we receive 'audio:segment' and associate it with this buffer?
-                    // Currently 'audioBuffer' is accumulated.
-                    // If we want dynamic speaker name per segment, we should process the segment immediately or store the name with the buffer.
-
-                    // Actually, the current architecture buffers audio in `audioBuffer`. 
-                    // AND `handleAudioSegment` processes the *accumulated* buffer.
-                    // If we have multiple segments with different speakers, they might get mixed?
-                    // But we process every 3 seconds roughly.
-
-                    // Let's check where `audioBuffer` comes from. It's a local variable in the websocket connection scope.
-                    // And `handleAudioSegment` is called... wait, `handleAudioSegment` IS NOT THE NAME.
-                    // The function is inside `ws.on('message')`.
-
-                    // Let's modify the message handler to capture `speakerName` and use it.
-                    // Since we process audio in chunks, we might have a race condition if we just set a variable.
-                    // BUT, typically one user speaks at a time for the duration of the buffer (3s).
-                    // So we can update `sessionData.currentActiveSpeaker` or similar.
-
-                    // Let's see the `audio:segment` handler.
-                    // Let's assume the payload comes with `speakerName`.
-                    // 1. Dynamic Speaker Label Resolution
-                    // Prioritize the name sent with the audio segment (active speaker detection)
-                    const dynamicSpeaker = event.payload.speakerName;
-                    const currentLeadName = dynamicSpeaker || sessionData?.leadName || bufferedLeadName || 'Cliente';
-                    const speakerLabel = role === 'seller' ? 'Você' : currentLeadName;
-
-                    if (role === 'lead') {
-                        logger.info(`🔍 [Participant Debug] Role: lead. Dynamic: '${dynamicSpeaker}'. Session: '${sessionData?.leadName}'. Buffered: '${bufferedLeadName}'. Final: '${speakerLabel}'`);
-                    }
-
-                    logger.info(`✨ [${speakerLabel}]: "${text}"`);
-                    debugLog(`[SUCCESS] Transcription: ${text}`);
-
-                    // 2. Update Session Data
-                    if (sessionData) {
+                        // 2. Update Session Data
                         const transcriptChunk = {
                             text,
-                            speaker: speakerLabel, // Explicitly save resolved name
-                            role,                  // Explicitly save role
+                            speaker: speakerLabel,
+                            role,
                             timestamp: Date.now(),
                             isFinal: true
                         };
@@ -849,13 +801,66 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             await redis.set(`call:${callId}:session`, sessionData, 3600);
                         }
 
-                        // 4. Update DB (Full transcript array)
+                        // 4. Update DB
                         const { error: updateError } = await supabaseAdmin.from('calls').update({
                             transcript: sessionData.transcript
                         }).eq('id', callId);
 
                         if (updateError) {
                             logger.error({ updateError, callId }, '❌ DB UPDATE ERROR: Failed to save transcript');
+                        }
+
+                        // ============================================
+                        // NEW AI LOGIC (MOVED FROM handleTranscript)
+                        // Triggered by audio segment processing
+                        // ============================================
+
+                        // 2. TIMING CONTROLLERS
+                        const now = Date.now();
+                        const COACH_INTERVAL = 10000; // 10s
+                        const SUMMARY_INTERVAL = 20000; // 20s
+
+                        // A. SPIN Coach (Every 10s)
+                        if (!sessionData.lastCoachingAt || (now - sessionData.lastCoachingAt) >= COACH_INTERVAL) {
+                            // Always update timer FIRST to prevent retry storms on failure
+                            sessionData.lastCoachingAt = now;
+                            try {
+                                logger.info(`🧠 Triggering SPIN Coach for call ${callId}`);
+                                const events = await coachEngine.processTranscriptChunk(transcriptChunk, sessionData);
+
+                                for (const aiEvent of events) {
+                                    if (ws.readyState === WebSocket.OPEN) {
+                                        ws.send(JSON.stringify({
+                                            type: 'COACHING_MESSAGE',
+                                            payload: aiEvent
+                                        }));
+                                    }
+
+                                    if (aiEvent.type === 'stage_change' && aiEvent.currentStep) {
+                                        sessionData.currentStep = aiEvent.currentStep;
+                                    }
+                                }
+                            } catch (coachError: any) {
+                                logger.error({ message: coachError?.message, stack: coachError?.stack }, '❌ SPIN Coach failed (non-fatal, socket stays alive)');
+                                // Socket stays alive — coaching will retry on the next interval
+                            }
+                        }
+
+                        // B. Live Summary (Every 20s)
+                        if (!sessionData.lastSummaryAt || (now - sessionData.lastSummaryAt) >= SUMMARY_INTERVAL) {
+                            // Always update timer FIRST to prevent retry storms on failure
+                            sessionData.lastSummaryAt = now;
+                            try {
+                                logger.info(`📊 Generating Live Summary for call ${callId}`);
+                                const liveSummary = await summaryAgent.generateLiveSummary(sessionData.transcript);
+
+                                if (liveSummary) {
+                                    await redis.publish(`call:${callId}:live_summary`, JSON.stringify(liveSummary));
+                                }
+                            } catch (summaryError: any) {
+                                logger.error({ message: summaryError?.message, stack: summaryError?.stack }, '❌ Summary Agent failed (non-fatal, socket stays alive)');
+                                // Socket stays alive — summary will retry on the next interval
+                            }
                         }
                     }
 
@@ -879,7 +884,6 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         }
                     }));
                 } else {
-                    // logger.debug('⏭️ Empty transcription (silence)');
                     debugLog(`[SILENCE] Empty transcription`);
                 }
             } catch (err: any) {
@@ -888,252 +892,176 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             }
         }
 
-        async function handleCallParticipants(event: any, currentCallId: string | null, session: CallSession | null) {
-            logger.info(`📨 Handling call:participants event. Payload: ${JSON.stringify(event.payload)}`);
-            const leadName = event.payload?.leadName;
+        // ========================================
+        // MANAGER WEBSOCKET ROUTE - WHISPER SYSTEM
+        // ========================================
 
-            if (!leadName) {
-                logger.warn('⚠️ Received call:participants but leadName is missing or empty');
+        fastify.get('/ws/manager', { websocket: true }, async (socket, req) => {
+            logger.info('👔 Manager WebSocket connection attempt');
+
+            const token = (req.query as any).token;
+            if (!token) {
+                socket.close(1008, 'Token required');
                 return;
             }
 
-            // A. If session doesn't exist yet, buffer the leadName
-            if (!session || !currentCallId) {
-                bufferedLeadName = leadName;
-                logger.info(`👤 Buffering lead name (session not ready): ${leadName}`);
+            const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+            if (error || !user) {
+                socket.close(1008, 'Invalid token');
                 return;
             }
 
-            // B. IMMEDIATE Local Update (Crucial for active connections)
-            if (sessionData) {
-                sessionData.leadName = leadName;
+            // TODO: Verify user is actually a manager/has manager permissions
+            // For now, all authenticated users can access
 
-                // 🌟 Retroactive Correction in Memory (The User's specific request)
-                if (sessionData.transcript && Array.isArray(sessionData.transcript)) {
-                    let hasUpdates = false;
-                    sessionData.transcript = sessionData.transcript.map(chunk => {
-                        if (chunk.role === 'lead' && (chunk.speaker === 'Cliente' || !chunk.speaker)) {
-                            hasUpdates = true;
-                            return { ...chunk, speaker: leadName };
-                        }
-                        return chunk;
-                    });
+            logger.info(`✅ Manager authenticated: ${user.id}`);
 
-                    if (hasUpdates) {
-                        logger.info(`🔄 Retroactively updated ${sessionData.transcript.length} transcript chunks in memory`);
+            let subscribedCallId: string | null = null;
+            let streamHandler: ((message: any) => void) | null = null;
+            let mediaHandler: ((message: any) => void) | null = null; // NEW: For video streaming
+            let liveSummaryHandler: ((message: any) => void) | null = null; // NEW: For live summaries
 
-                        // Sync immediately with DB to fix initial "Clients"
-                        await supabaseAdmin
-                            .from('calls')
-                            .update({ transcript: sessionData.transcript })
-                            .eq('id', currentCallId);
+            socket.on('message', async (message: string) => {
+                try {
+                    const event = JSON.parse(message.toString());
+
+                    switch (event.type) {
+                        case 'manager:join':
+                            // Manager wants to join/monitor a specific call
+                            const { callId } = event.payload || {};
+                            if (!callId) {
+                                socket.send(JSON.stringify({
+                                    type: 'error',
+                                    payload: { message: 'callId is required' }
+                                }));
+                                return;
+                            }
+
+                            // Unsubscribe from previous call if any
+                            if (subscribedCallId && streamHandler) {
+                                await redis.unsubscribe(`call:${subscribedCallId}:stream`, streamHandler);
+                            }
+                            if (subscribedCallId && mediaHandler) {
+                                await redis.unsubscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
+                            }
+                            if (subscribedCallId && liveSummaryHandler) {
+                                await redis.unsubscribe(`call:${subscribedCallId}:live_summary`, liveSummaryHandler);
+                            }
+
+                            // Subscribe to new call's transcript stream
+                            subscribedCallId = callId;
+                            streamHandler = (transcriptData: any) => {
+                                // Forward transcript to manager
+                                socket.send(JSON.stringify({
+                                    type: 'transcript:stream',
+                                    payload: transcriptData
+                                }));
+                            };
+
+                            await redis.subscribe(`call:${subscribedCallId}:stream`, streamHandler);
+
+                            // NEW: Subscribe to media stream (video + audio)
+                            mediaHandler = (mediaData: any) => {
+                                // Forward media chunk to manager
+                                socket.send(JSON.stringify({
+                                    type: 'media:chunk',
+                                    payload: mediaData
+                                }));
+                            };
+
+                            await redis.subscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
+
+                            // NEW: Subscribe to live summary
+                            liveSummaryHandler = (summaryData: any) => {
+                                socket.send(JSON.stringify({
+                                    type: 'call:live_summary',
+                                    payload: summaryData
+                                }));
+                            };
+                            await redis.subscribe(`call:${subscribedCallId}:live_summary`, liveSummaryHandler);
+
+                            // Check for cached media header and send immediately
+                            const cachedHeader = await redis.get(`call:${callId}:media_header`);
+                            if (cachedHeader) {
+                                logger.info(`📼 Sending cached media header to manager for call ${callId}`);
+                                socket.send(JSON.stringify({
+                                    type: 'media:chunk', // Critical for MediaStreamPlayer
+                                    payload: JSON.parse(cachedHeader)
+                                }));
+                            } else {
+                                logger.warn(`⚠️ No media header cached for call ${callId}`);
+                            }
+
+                            logger.info(`👔 Manager ${user.id} joined call ${callId} (transcript + media)`);
+
+                            socket.send(JSON.stringify({
+                                type: 'manager:joined',
+                                payload: { callId }
+                            }));
+                            break;
+
+                        case 'manager:whisper':
+                            // Manager sends a coaching tip/whisper to the seller
+                            if (!subscribedCallId) {
+                                socket.send(JSON.stringify({
+                                    type: 'error',
+                                    payload: { message: 'Not subscribed to any call' }
+                                }));
+                                return;
+                            }
+
+                            const { content, urgency = 'normal' } = event.payload || {};
+                            if (!content) {
+                                socket.send(JSON.stringify({
+                                    type: 'error',
+                                    payload: { message: 'content is required' }
+                                }));
+                                return;
+                            }
+
+                            // Publish whisper to the command channel
+                            await redis.publish(`call:${subscribedCallId}:commands`, {
+                                type: 'whisper',
+                                content,
+                                urgency,
+                                managerId: user.id,
+                                timestamp: Date.now()
+                            });
+
+                            logger.info(`💬 Manager ${user.id} sent whisper to call ${subscribedCallId}`);
+
+                            socket.send(JSON.stringify({
+                                type: 'whisper:sent',
+                                payload: { callId: subscribedCallId }
+                            }));
+                            break;
+
+                        default:
+                            logger.warn(`Unknown event type from manager: ${event.type}`);
                     }
+                } catch (err: any) {
+                    logger.error({ error: err }, '❌ Error handling manager message');
                 }
-            }
+            });
 
-            // Also update the session object passed in if it's different and valid
-            if (session && session !== sessionData) {
-                session.leadName = leadName;
-            }
+            socket.on('close', async (code, reason) => {
+                logger.info({ code, reason: reason?.toString() }, '👔 Manager WS Disconnected');
 
-            // Clear buffer now that we've applied it
-            if (bufferedLeadName === leadName) {
-                bufferedLeadName = null;
-            }
-
-            logger.info(`👤 Lead identified and set in session: ${leadName}`);
-            await redis.set(`call:${currentCallId}:session`, sessionData || session, 3600 * 4);
-
-            // C. Retroactive Update (Fix past "Cliente" entries)
-            try {
-                const { data: currentCall } = await supabaseAdmin
-                    .from('calls')
-                    .select('transcript')
-                    .eq('id', currentCallId)
-                    .single();
-
-                if (currentCall?.transcript && Array.isArray(currentCall.transcript)) {
-                    let hasUpdates = false;
-                    const updatedTranscript = currentCall.transcript.map((msg: any) => {
-                        if (msg.role === 'lead' && (msg.speaker === 'Cliente' || !msg.speaker)) {
-                            hasUpdates = true;
-                            return { ...msg, speaker: leadName };
-                        }
-                        return msg;
-                    });
-
-                    if (hasUpdates) {
-                        logger.info(`🔄 Retroactively updating transcript with lead name: ${leadName}`);
-                        await supabaseAdmin
-                            .from('calls')
-                            .update({ transcript: updatedTranscript })
-                            .eq('id', currentCallId);
-
-                        // Also update local session transcript to match
-                        if (sessionData) {
-                            sessionData.transcript = updatedTranscript;
-                        }
-                    }
+                // Cleanup subscriptions
+                if (subscribedCallId && streamHandler) {
+                    await redis.unsubscribe(`call:${subscribedCallId}:stream`, streamHandler);
                 }
-            } catch (err) {
-                logger.error({ err }, 'Failed to retroactively update lead name in transcript');
-            }
-        }
-    });
-
-    // ========================================
-    // MANAGER WEBSOCKET ROUTE - WHISPER SYSTEM
-    // ========================================
-
-    fastify.get('/ws/manager', { websocket: true }, async (socket, req) => {
-        logger.info('👔 Manager WebSocket connection attempt');
-
-        const token = (req.query as any).token;
-        if (!token) {
-            socket.close(1008, 'Token required');
-            return;
-        }
-
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-        if (error || !user) {
-            socket.close(1008, 'Invalid token');
-            return;
-        }
-
-        // TODO: Verify user is actually a manager/has manager permissions
-        // For now, all authenticated users can access
-
-        logger.info(`✅ Manager authenticated: ${user.id}`);
-
-        let subscribedCallId: string | null = null;
-        let streamHandler: ((message: any) => void) | null = null;
-        let mediaHandler: ((message: any) => void) | null = null; // NEW: For video streaming
-
-        socket.on('message', async (message: string) => {
-            try {
-                const event = JSON.parse(message.toString());
-
-                switch (event.type) {
-                    case 'manager:join':
-                        // Manager wants to join/monitor a specific call
-                        const { callId } = event.payload || {};
-                        if (!callId) {
-                            socket.send(JSON.stringify({
-                                type: 'error',
-                                payload: { message: 'callId is required' }
-                            }));
-                            return;
-                        }
-
-                        // Unsubscribe from previous call if any
-                        if (subscribedCallId && streamHandler) {
-                            await redis.unsubscribe(`call:${subscribedCallId}:stream`, streamHandler);
-                        }
-                        if (subscribedCallId && mediaHandler) {
-                            await redis.unsubscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
-                        }
-
-                        // Subscribe to new call's transcript stream
-                        subscribedCallId = callId;
-                        streamHandler = (transcriptData: any) => {
-                            // Forward transcript to manager
-                            socket.send(JSON.stringify({
-                                type: 'transcript:stream',
-                                payload: transcriptData
-                            }));
-                        };
-
-                        await redis.subscribe(`call:${subscribedCallId}:stream`, streamHandler);
-
-                        // NEW: Subscribe to media stream (video + audio)
-                        mediaHandler = (mediaData: any) => {
-                            // Forward media chunk to manager
-                            socket.send(JSON.stringify({
-                                type: 'media:chunk',
-                                payload: mediaData
-                            }));
-                        };
-
-                        await redis.subscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
-
-                        // Check for cached media header and send immediately
-                        const cachedHeader = await redis.get(`call:${callId}:media_header`);
-                        if (cachedHeader) {
-                            logger.info(`📼 Sending cached media header to manager for call ${callId}`);
-                            socket.send(JSON.stringify({
-                                type: 'media:chunk', // Critical for MediaStreamPlayer
-                                payload: JSON.parse(cachedHeader)
-                            }));
-                        } else {
-                            logger.warn(`⚠️ No media header cached for call ${callId}`);
-                        }
-
-                        logger.info(`👔 Manager ${user.id} joined call ${callId} (transcript + media)`);
-
-                        socket.send(JSON.stringify({
-                            type: 'manager:joined',
-                            payload: { callId }
-                        }));
-                        break;
-
-                    case 'manager:whisper':
-                        // Manager sends a coaching tip/whisper to the seller
-                        if (!subscribedCallId) {
-                            socket.send(JSON.stringify({
-                                type: 'error',
-                                payload: { message: 'Not subscribed to any call' }
-                            }));
-                            return;
-                        }
-
-                        const { content, urgency = 'normal' } = event.payload || {};
-                        if (!content) {
-                            socket.send(JSON.stringify({
-                                type: 'error',
-                                payload: { message: 'content is required' }
-                            }));
-                            return;
-                        }
-
-                        // Publish whisper to the command channel
-                        await redis.publish(`call:${subscribedCallId}:commands`, {
-                            type: 'whisper',
-                            content,
-                            urgency,
-                            managerId: user.id,
-                            timestamp: Date.now()
-                        });
-
-                        logger.info(`💬 Manager ${user.id} sent whisper to call ${subscribedCallId}`);
-
-                        socket.send(JSON.stringify({
-                            type: 'whisper:sent',
-                            payload: { callId: subscribedCallId }
-                        }));
-                        break;
-
-                    default:
-                        logger.warn(`Unknown event type from manager: ${event.type}`);
+                if (subscribedCallId && mediaHandler) {
+                    await redis.unsubscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
                 }
-            } catch (err: any) {
-                logger.error({ error: err }, '❌ Error handling manager message');
-            }
-        });
+                if (subscribedCallId && liveSummaryHandler) {
+                    await redis.unsubscribe(`call:${subscribedCallId}:live_summary`, liveSummaryHandler);
+                }
+            });
 
-        socket.on('close', async (code, reason) => {
-            logger.info({ code, reason: reason?.toString() }, '👔 Manager WS Disconnected');
-
-            // Cleanup subscriptions
-            if (subscribedCallId && streamHandler) {
-                await redis.unsubscribe(`call:${subscribedCallId}:stream`, streamHandler);
-            }
-            if (subscribedCallId && mediaHandler) {
-                await redis.unsubscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
-            }
-        });
-
-        socket.on('error', (err) => {
-            logger.error({ err }, '👔 Manager WS Error');
+            socket.on('error', (err) => {
+                logger.error({ err }, '👔 Manager WS Error');
+            });
         });
     });
 }
