@@ -202,6 +202,25 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         let audioBuffer: Buffer[] = [];
         let transcriptionTimer: NodeJS.Timeout | null = null;
         let commandHandler: ((message: any) => void) | null = null; // For manager whispers
+        let isAlive = true;
+
+        // HEARTBEAT
+        const pingInterval = setInterval(() => {
+            if (!isAlive) {
+                logger.warn(`💓 Client inactive, terminating connection for user ${user.id}`);
+                socket.terminate();
+                return;
+            }
+            isAlive = false;
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.ping();
+            }
+        }, 30000);
+
+        socket.on('pong', () => {
+            isAlive = true;
+            // debugLog(`[PONG] Heartbeat received from ${user.id}`);
+        });
 
         socket.on('message', async (message: string) => {
             try {
@@ -209,13 +228,13 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 // console.log('👀 RAW SOCKET MESSAGE SERVER-SIDE:', msgString.substring(0, 100));
 
                 if (!msgString.includes('media:stream') && !msgString.includes('audio:segment')) {
-                    // console.log('RAW MSG RECEIVED:', msgString);
+                    logger.info(`RAW MSG RECEIVED: ${msgString.slice(0, 500)}`);
                 }
                 const event = JSON.parse(msgString);
 
                 // IGNORE media:stream logs to avoid noise, but log everything else
                 if (event.type !== 'media:stream' && event.type !== 'audio:segment') {
-                    // logger.info(`📨 WS EVENT RECEIVED: ${event.type}`);
+                    logger.info(`📨 WS EVENT RECEIVED: ${event.type}`);
                 }
 
                 if (!callId && event.type !== 'call:start') {
@@ -229,7 +248,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
                 switch (event.type) {
                     case 'call:start':
-                        logger.info('🚀 Processing call:start payload:', JSON.stringify(event.payload));
+                        logger.info({ payload: event.payload }, '🚀 Processing call:start payload');
                         await handleCallStart(event, user.id, socket);
                         break;
                     case 'audio:chunk':
@@ -263,8 +282,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             if (event.payload.isHeader) {
                                 await redis.set(
                                     `call:${callId}:media_header`,
-                                    JSON.stringify(payload),
-                                    'EX',
+                                    payload,
                                     14400 // 4 hours
                                 );
                                 logger.info(`📼 Video Header cached for call ${callId}`);
@@ -286,7 +304,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
 
         socket.on('close', async (code, reason) => {
-            logger.info({ code, reason: reason?.toString() }, '🔌 WS Disconnected');
+            clearInterval(pingInterval);
+            logger.info({ code, reason: reason?.toString(), callId }, '🔌 WS Disconnected');
 
             // Cleanup command subscription
             if (callId && commandHandler) {
@@ -296,7 +315,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         });
 
         socket.on('error', (err) => {
-            logger.error({ err }, '🔌 WS Error');
+            logger.error({ err, callId }, '🔌 WS Error');
         });
 
         // Helper to setup command subscription
@@ -708,8 +727,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             }
                         }));
                     }
-                } catch (err) {
-                    logger.error('❌ Whisper transcription failed', err);
+                } catch (error: any) {
+                    logger.error({ err: error }, '❌ Whisper transcription failed');
                 }
             }
         }
@@ -972,11 +991,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             await redis.subscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
 
                             // NEW: Subscribe to live summary
-                            liveSummaryHandler = (summaryData: any) => {
-                                socket.send(JSON.stringify({
-                                    type: 'call:live_summary',
-                                    payload: summaryData
-                                }));
+                            liveSummaryHandler = async (summaryData: any) => {
+                                // Send to manager if valid
+                                if (summaryData) {
+                                    logger.info({ summary: summaryData }, '📊 Broadcasting Live Summary');
+                                    socket.send(JSON.stringify({
+                                        type: 'call:live_summary',
+                                        payload: summaryData
+                                    }));
+                                }
                             };
                             await redis.subscribe(`call:${subscribedCallId}:live_summary`, liveSummaryHandler);
 
