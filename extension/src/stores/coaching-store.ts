@@ -58,6 +58,10 @@ interface CoachingState {
     scriptId: string | null;
     cacheTimestamp: number | null;
 
+    // NEW: SPIN Phase
+    currentSpinPhase: string | null;
+    setSpinPhase: (phase: string) => void;
+
     // Actions
     toggleMinimize: () => void;
     toggleTheme: () => void;
@@ -71,7 +75,7 @@ interface CoachingState {
     setSpeaker: (speaker: 'user' | 'lead') => void;
     setCallSummary: (show: boolean) => void;
 
-    // NEW: Cache Management
+    // Cache Management
     loadScriptData: (scriptId: string, objections: CachedObjection[]) => void;
     clearCache: () => void;
 }
@@ -85,34 +89,23 @@ export const useCoachingStore = create<CoachingState>((set, get) => ({
     timer: 0,
     startTime: null,
 
-    currentStageIndex: 2, // Mock start
+    currentStageIndex: 0,
     stages: [
-        { id: '1', name: 'Rapport', status: 'completed' },
-        { id: '2', name: 'Discovery', status: 'completed' },
-        { id: '3', name: 'Apresentação', status: 'current' },
-        { id: '4', name: 'Objeções', status: 'pending' },
-        { id: '5', name: 'Fechamento', status: 'pending' },
-        { id: '6', name: 'Next Steps', status: 'pending' },
-        { id: '7', name: 'Wrap Up', status: 'pending' },
+        { id: '1', name: 'Situação', status: 'current' },
+        { id: '2', name: 'Problema', status: 'pending' },
+        { id: '3', name: 'Implicação', status: 'pending' },
+        { id: '4', name: 'Necessidade', status: 'pending' },
     ],
-    nextStep: 'Agendar Demo Técnica',
-    nextStepQuestion: 'O que acontece se nada mudar?',
+    nextStep: 'Próximo Passo SPIN',
+    nextStepQuestion: '',
 
-    leadProfile: 'emotional',
-    buyingSignalsCount: 3,
+    leadProfile: 'rational',
+    buyingSignalsCount: 0,
     activeSpeaker: 'lead',
 
-    cards: [
-        // Initial Mock Data
-        {
-            id: 'mock-1',
-            type: 'signal',
-            title: 'SINAL DE COMPRA',
-            description: 'Ele perguntou sobre pagamento! Vá direto para o fechamento.',
-            timestamp: Date.now() - 5000,
-            isDismissed: false
-        }
-    ],
+    currentSpinPhase: null,
+
+    cards: [],
 
     toggleMinimize: () => set((state) => ({ isMinimized: !state.isMinimized })),
     toggleTheme: () => set((state) => ({ isDark: !state.isDark })),
@@ -152,6 +145,7 @@ export const useCoachingStore = create<CoachingState>((set, get) => ({
     setLeadProfile: (profile) => set({ leadProfile: profile }),
     setSpeaker: (speaker) => set({ activeSpeaker: speaker }),
     setCallSummary: (show) => set({ showEndModal: show }),
+    setSpinPhase: (phase) => set({ currentSpinPhase: phase }),
 
     // NEW: Script Cache Implementation
     cachedObjections: [],

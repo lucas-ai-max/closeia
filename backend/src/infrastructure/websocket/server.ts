@@ -31,6 +31,7 @@ export interface CallSession {
     transcript: TranscriptChunk[];
     currentStep: number;
     // AI State
+    chunksSinceLastCoach: number;
     lastCoachingAt?: number;
     lastSummaryAt?: number; // NEW: Timer for summary
     leadProfile?: any;
@@ -529,6 +530,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     startedAt: new Date().getTime(),
                     transcript: [],
                     currentStep: 1,
+                    chunksSinceLastCoach: 0,
                     lastCoachingAt: 0,
                     lastSummaryAt: 0,
                     leadName: leadName || bufferedLeadName || undefined
@@ -777,9 +779,13 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         // ============================================
 
                         const now = Date.now();
-                        const COACH_INTERVAL = 10000;  // 10s
+                        const COACH_CHUNK_THRESHOLD = 3; // Fire coach every 3 transcriptions (~10s)
                         const SUMMARY_INTERVAL = 20000; // 20s
                         const CONTEXT_WINDOW = 60000;   // 60s sliding window
+
+                        // Increment chunk counter
+                        if (!sessionData.chunksSinceLastCoach) sessionData.chunksSinceLastCoach = 0;
+                        sessionData.chunksSinceLastCoach++;
 
                         // Build 60s sliding window context
                         const buildContext60s = (): string => {
@@ -790,8 +796,9 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                                 .join('\n');
                         };
 
-                        // A. SPIN Coach (Every 10s) → coach:tip + objection:detected
-                        if (!sessionData.lastCoachingAt || (now - sessionData.lastCoachingAt) >= COACH_INTERVAL) {
+                        // A. SPIN Coach (Every 3 chunks ≈ 10s) → coach:tip + objection:detected
+                        if (sessionData.chunksSinceLastCoach >= COACH_CHUNK_THRESHOLD) {
+                            sessionData.chunksSinceLastCoach = 0;
                             sessionData.lastCoachingAt = now;
                             try {
                                 const context60s = buildContext60s();

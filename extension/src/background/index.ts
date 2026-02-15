@@ -157,6 +157,22 @@ onWsMessage(async (data: any) => {
         }
     }
 
+    // Handle objection:detected from backend SPIN coach
+    if (data.type === 'objection:detected') {
+        console.log('⚡ OBJECTION DETECTED:', data.payload?.objection?.substring(0, 50));
+        const state = await getState();
+        if (state.currentTabId) {
+            chrome.tabs.sendMessage(state.currentTabId, {
+                type: 'OBJECTION_DETECTED',
+                data: {
+                    objection: data.payload.objection,
+                    phase: data.payload.phase,
+                    tip: data.payload.tip
+                }
+            }).catch(() => { });
+        }
+    }
+
     // Handle errors from backend
     if (data.type === 'error') {
         console.error('❌ BACKEND ERROR:', data.payload);

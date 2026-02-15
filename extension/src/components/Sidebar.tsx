@@ -23,8 +23,41 @@ export default function Sidebar() {
                 else if (msg.status === 'PROGRAMMED') setConnectionStatus('connected');
                 else setConnectionStatus('disconnected');
             } else if (msg.type === 'COACHING_MESSAGE') {
-                // Handle arbitrary coaching events 
-                // In real app, these come from backend via WS -> Background -> Content
+                const payload = msg.data;
+                const isObjection = payload.type === 'objection' && payload.metadata?.objection;
+                const phase = payload.metadata?.phase || null;
+                const phaseLabels: Record<string, string> = {
+                    S: 'Situação', P: 'Problema', I: 'Implicação', N: 'Necessidade'
+                };
+
+                addCard({
+                    type: isObjection ? 'objection' : 'tip',
+                    title: isObjection
+                        ? '⚡ Objeção Detectada'
+                        : `💡 ${phase ? phaseLabels[phase] || 'SPIN' : 'Dica'} — Próximo Passo`,
+                    description: payload.content,
+                    metadata: { ...payload.metadata, urgency: payload.urgency }
+                });
+
+                if (phase) setStage(phase === 'S' ? 0 : phase === 'P' ? 1 : phase === 'I' ? 2 : 3);
+            } else if (msg.type === 'OBJECTION_DETECTED') {
+                addCard({
+                    type: 'objection',
+                    title: '⚡ Objeção Detectada',
+                    description: msg.data.tip,
+                    metadata: {
+                        phase: msg.data.phase,
+                        objection: msg.data.objection,
+                        urgency: 'high'
+                    }
+                });
+            } else if (msg.type === 'MANAGER_WHISPER') {
+                addCard({
+                    type: 'manager-whisper',
+                    title: '🎯 Mensagem do Gerente',
+                    description: msg.data.content,
+                    metadata: { source: 'manager', urgency: msg.data.urgency }
+                });
             }
         };
         chrome.runtime.onMessage.addListener(listener);
