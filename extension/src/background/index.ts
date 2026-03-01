@@ -16,7 +16,7 @@ edgeCoach.initialize().then(() => {
 
 let currentLeadName = '';
 let micIsMuted = false; // Track mic mute state
-let lastCallStartParams: { platform: string; scriptId: string; leadName?: string; externalId?: string | null } | null = null;
+let lastCallStartParams: { platform: string; scriptId: string | null; leadName?: string; externalId?: string | null } | null = null;
 let cachedObjections: CachedObjection[] = [];
 
 let isCallConfirmed = false;
@@ -645,7 +645,7 @@ async function startCapture(explicitTabId?: number) {
 
             lastCallStartParams = {
                 platform: urlToPlatform(url),
-                scriptId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                scriptId: null, // Backend resolves to first org script when null
                 leadName: currentLeadName,
                 externalId: externalId
             };

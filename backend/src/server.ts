@@ -11,18 +11,9 @@ const server = Fastify({
     logger: config.isDev ? false : true, // We use pino logger manually in dev
 });
 
-import fs from 'fs';
-import path from 'path';
-
-// DEBUG LOGGING FILE
-const LOG_FILE = path.join(process.cwd(), 'backend-debug.log');
-
+// DEBUG LOGGING (uses structured logger instead of sync file I/O)
 function debugLog(msg: string) {
-    try {
-        fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`);
-    } catch (e) {
-        console.error('Failed to write to log file', e);
-    }
+    logger.debug(msg);
 }
 
 // Register Plugins

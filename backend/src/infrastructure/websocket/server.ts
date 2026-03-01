@@ -3,8 +3,6 @@ import { supabaseAdmin } from '../../infrastructure/supabase/client.js';
 import { redis } from '../../infrastructure/cache/redis.js';
 import { logger } from '../../shared/utils/logger.js';
 import { WebSocket } from 'ws';
-import fs from 'fs';
-import path from 'path';
 
 const WEBM_EBML = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
 const MIN_INIT_SEGMENT_BYTES = 100;
@@ -31,14 +29,9 @@ function encodeMediaChunkToBinary(payload: { chunk: string; isHeader?: boolean }
 /** Gestores inscritos por callId (broadcast direto quando Redis está em memory mode). */
 const managerSocketsByCallId = new Map<string, Set<WebSocket>>();
 
-// DEBUG LOGGING
-const LOG_FILE = path.join(process.cwd(), 'backend-websocket-debug-v2.log');
+// DEBUG LOGGING (uses structured logger instead of sync file I/O)
 function debugLog(msg: string) {
-    try {
-        fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`);
-    } catch (e) {
-        console.error('Failed to write to log file', e);
-    }
+    logger.debug(msg);
 }
 
 // AI Imports
@@ -670,7 +663,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
                 // 2. Resolve Script ID (New Call)
                 let finalScriptId = scriptId;
-                if (orgId && (!scriptId || scriptId === 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')) {
+                if (orgId && !scriptId) {
                     const { data: defaultScript } = await supabaseAdmin
                         .from('scripts')
                         .select('id')

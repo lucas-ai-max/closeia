@@ -168,16 +168,43 @@ class RedisClient {
     // PUB/SUB METHODS FOR MANAGER WHISPER
     // ========================================
 
-    private subscribers: Map<string, Redis> = new Map();
+    /** Single shared subscriber connection (instead of one per channel) */
+    private subscriberClient: Redis | null = null;
+    private subscribedChannels: Set<string> = new Set();
     private subscriptionHandlers: Map<string, Set<(message: string) => void>> = new Map();
+
+    private getOrCreateSubscriber(): Redis {
+        if (this.subscriberClient) return this.subscriberClient;
+
+        this.subscriberClient = new Redis(env.REDIS_URL, {
+            retryStrategy: (times) => Math.min(times * 100, 3000),
+            maxRetriesPerRequest: 3
+        });
+
+        this.subscriberClient.on('error', (err) => {
+            logger.error({ err }, '❌ Redis Subscriber Error');
+        });
+
+        this.subscriberClient.on('message', (channel, msg) => {
+            try {
+                const parsed = JSON.parse(msg);
+                const handlers = this.subscriptionHandlers.get(channel);
+                if (handlers) {
+                    handlers.forEach(h => h(parsed));
+                }
+            } catch (error) {
+                logger.error({ error }, `Failed to parse message from ${channel}`);
+            }
+        });
+
+        return this.subscriberClient;
+    }
 
     /**
      * Publishes a message to a Redis channel
-     * Used for broadcasting transcripts and commands
      */
     async publish(channel: string, message: any): Promise<void> {
         if (this.useMemory || !this.client) {
-            // logger.warn('⚠️ Pub/Sub not available in memory mode');
             return;
         }
 
@@ -191,52 +218,23 @@ class RedisClient {
     }
 
     /**
-     * Subscribes to a Redis channel
-     * Creates a dedicated subscriber client for each unique channel
+     * Subscribes to a Redis channel using a single shared subscriber connection
      */
     async subscribe(channel: string, handler: (message: any) => void): Promise<void> {
         if (this.useMemory || !this.client) {
-            // logger.warn('⚠️ Pub/Sub not available in memory mode');
             return;
         }
 
         try {
-            // Create dedicated subscriber client if doesn't exist
-            if (!this.subscribers.has(channel)) {
-                const subscriberClient = new Redis(env.REDIS_URL, {
-                    // Prevent auto-reconnect spam if Redis is down
-                    retryStrategy: (times) => Math.min(times * 100, 3000),
-                    maxRetriesPerRequest: 3
-                });
+            const subscriber = this.getOrCreateSubscriber();
 
-                // CRITICAL: Handle errors to prevent crash
-                subscriberClient.on('error', (err) => {
-                    logger.error({ err, channel }, '❌ Redis Subscriber Error');
-                    // Should we disconnect? For now, just log to keep process alive
-                });
-
-                subscriberClient.on('message', (ch, msg) => {
-                    if (ch === channel) {
-                        try {
-                            const parsed = JSON.parse(msg);
-                            const handlers = this.subscriptionHandlers.get(channel);
-                            if (handlers) {
-                                handlers.forEach(h => h(parsed));
-                            }
-                        } catch (error) {
-                            logger.error({ error }, `Failed to parse message from ${channel}`);
-                        }
-                    }
-                });
-
-                await subscriberClient.subscribe(channel);
-                this.subscribers.set(channel, subscriberClient);
+            if (!this.subscribedChannels.has(channel)) {
+                await subscriber.subscribe(channel);
+                this.subscribedChannels.add(channel);
                 this.subscriptionHandlers.set(channel, new Set());
-
                 logger.info(`✅ Subscribed to ${channel}`);
             }
 
-            // Add handler to set
             const handlers = this.subscriptionHandlers.get(channel)!;
             handlers.add(handler);
         } catch (error) {
@@ -252,15 +250,20 @@ class RedisClient {
         if (handlers) {
             handlers.delete(handler);
 
-            // If no more handlers, close the subscriber client
+            // If no more handlers for this channel, unsubscribe
             if (handlers.size === 0) {
-                const subscriber = this.subscribers.get(channel);
-                if (subscriber) {
-                    await subscriber.unsubscribe(channel);
-                    subscriber.disconnect();
-                    this.subscribers.delete(channel);
-                    this.subscriptionHandlers.delete(channel);
+                this.subscriptionHandlers.delete(channel);
+                this.subscribedChannels.delete(channel);
+                if (this.subscriberClient) {
+                    await this.subscriberClient.unsubscribe(channel);
                     logger.info(`🔌 Unsubscribed from ${channel}`);
+
+                    // Disconnect subscriber if no channels left
+                    if (this.subscribedChannels.size === 0) {
+                        this.subscriberClient.disconnect();
+                        this.subscriberClient = null;
+                        logger.info('🔌 Subscriber client disconnected (no active channels)');
+                    }
                 }
             }
         }
@@ -270,11 +273,14 @@ class RedisClient {
      * Cleanup all subscriptions (useful on shutdown)
      */
     async cleanupSubscriptions(): Promise<void> {
-        for (const [channel, subscriber] of this.subscribers.entries()) {
-            await subscriber.unsubscribe(channel);
-            subscriber.disconnect();
+        if (this.subscriberClient) {
+            for (const channel of this.subscribedChannels) {
+                await this.subscriberClient.unsubscribe(channel);
+            }
+            this.subscriberClient.disconnect();
+            this.subscriberClient = null;
         }
-        this.subscribers.clear();
+        this.subscribedChannels.clear();
         this.subscriptionHandlers.clear();
         logger.info('🧹 All Redis subscriptions cleaned up');
     }

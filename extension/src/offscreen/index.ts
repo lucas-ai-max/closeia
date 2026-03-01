@@ -89,7 +89,7 @@ function getAudioLevel(analyser: AnalyserNode | null): number {
 async function startTranscription(streamId: string) {
     if (isRecording) {
         log('⚠️ Already recording, stopping previous session...');
-        stopTranscription();
+        await stopTranscription();
     }
 
     try {
@@ -430,7 +430,7 @@ function startRecordingCycle(
     else micRecorder = recorder as MediaRecorder;
 }
 
-function stopTranscription() {
+async function stopTranscription() {
     log('🛑 Stopping transcription...');
     isRecording = false;
 
@@ -442,12 +442,15 @@ function stopTranscription() {
     delete webmHeaders['lead'];
     delete webmHeaders['seller'];
 
-    // NEW: Stop media streaming
+    // Stop media streaming (includes LiveKit disconnect)
     stopMediaStreaming();
 
-    [playbackContext, tabAnalyserCtx, micAnalyserCtx].forEach(ctx => {
-        if (ctx) ctx.close().catch(() => { });
-    });
+    // Close all AudioContext instances
+    await Promise.allSettled(
+        [playbackContext, tabAnalyserCtx, micAnalyserCtx]
+            .filter(Boolean)
+            .map(ctx => ctx!.close())
+    );
     playbackContext = null;
     tabAnalyserCtx = null;
     micAnalyserCtx = null;
