@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { logger } from '../../shared/utils/logger.js';
 
 export type ParsedResponse = z.infer<typeof ResponseSchema>;
 
@@ -32,7 +33,7 @@ export class ResponseParser {
             const parsed = JSON.parse(cleaned);
             return ResponseSchema.parse(parsed);
         } catch (e) {
-            console.error('Failed to parse LLM response', e);
+            logger.error({ err: e }, 'Failed to parse LLM response');
             // Fallback safe response
             return {
                 shouldSkipResponse: true,

@@ -1115,7 +1115,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 if (ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'coach:thinking', payload: { timestamp: now } }));
                 }
-                const recentTranscript = sessionData.transcript.slice(-30);
+                const recentTranscript = (sessionData.transcript || []).slice(-30);
                 const fullContext = recentTranscript
                     .map((t: any) => `${t.role === 'seller' ? 'VENDEDOR' : 'LEAD'}: ${t.text}`)
                     .join('\n');
@@ -1221,8 +1221,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
         let dgAudioChunkCount = 0;
 
+        const MAX_AUDIO_CHUNK_BYTES = 1024 * 1024; // 1 MB
+
         async function handleAudioSegment(event: any, ws: WebSocket) {
             const audioBuf = Buffer.from(event.payload.audio, 'base64');
+            if (audioBuf.length > MAX_AUDIO_CHUNK_BYTES) {
+                logger.warn({ bytes: audioBuf.length }, 'Audio chunk exceeds max size, dropping');
+                return;
+            }
             const rawRole = event.payload.role || event.payload.speaker || 'lead';
             const role: 'seller' | 'lead' = rawRole === 'seller' ? 'seller' : 'lead';
             const isHeader = !!event.payload.isHeader;

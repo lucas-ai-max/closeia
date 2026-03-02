@@ -2,9 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import SimpleSidebar from '@/components/SimpleSidebar';
 import { startParticipantMonitoring, stopParticipantMonitoring, sendParticipantInfoNow, startMicStateMonitoring, stopMicStateMonitoring, getLeadName } from './meet-participants';
-// import '@/index.css';
-
-console.log('HelpSeller Content Script Loaded');
 
 if (window.location.hostname === 'meet.google.com') {
     startParticipantMonitoring();
@@ -225,78 +222,59 @@ function persistSidebarOpen(open: boolean): void {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    console.log('Content script received message:', msg.type);
-
-    if (msg.type === 'TOGGLE_SIDEBAR_TRUSTED') {
-        isOpen = !isOpen;
-        if (isOpen) setHostOpen();
-        else setHostClosed();
-        persistSidebarOpen(isOpen);
-        console.log('Sidebar toggled (trusted):', isOpen ? 'OPEN' : 'CLOSED');
-    } else if (msg.type === 'TOGGLE_SIDEBAR') {
-        if (!isOpen) {
+    try {
+        if (msg.type === 'TOGGLE_SIDEBAR_TRUSTED') {
+            isOpen = !isOpen;
+            if (isOpen) setHostOpen();
+            else setHostClosed();
+            persistSidebarOpen(isOpen);
+        } else if (msg.type === 'TOGGLE_SIDEBAR') {
+            if (!isOpen) {
+                chrome.runtime.sendMessage({ type: 'GET_SESSION' }, (response: { session?: any } | undefined) => {
+                    if (!response?.session) return;
+                    isOpen = true;
+                    setHostOpen();
+                    persistSidebarOpen(true);
+                });
+            } else {
+                isOpen = false;
+                setHostClosed();
+                persistSidebarOpen(false);
+            }
+        } else if (msg.type === 'OPEN_SIDEBAR') {
             chrome.runtime.sendMessage({ type: 'GET_SESSION' }, (response: { session?: any } | undefined) => {
                 if (!response?.session) return;
                 isOpen = true;
                 setHostOpen();
                 persistSidebarOpen(true);
-                console.log('Sidebar toggled: OPEN');
             });
-        } else {
+        } else if (msg.type === 'CLOSE_SIDEBAR') {
             isOpen = false;
             setHostClosed();
             persistSidebarOpen(false);
-            console.log('Sidebar toggled: CLOSED');
+        } else if (msg.type === 'GET_SIDEBAR_OPEN') {
+            sendResponse({ open: isOpen });
+            return true;
+        } else if (msg.type === 'GET_ACTIVE_SPEAKER') {
+            const leadName = getLeadName();
+            sendResponse({ activeSpeaker: leadName });
+            return true;
+        } else if (msg.type === 'STATUS_UPDATE' && window.location.hostname === 'meet.google.com') {
+            if (msg.status === 'RECORDING') {
+                sendParticipantInfoNow();
+            } else if (msg.status === 'PROGRAMMED' || msg.status === 'ERROR') {
+                stopParticipantMonitoring();
+                stopMicStateMonitoring();
+            }
         }
-    } else if (msg.type === 'OPEN_SIDEBAR') {
-        chrome.runtime.sendMessage({ type: 'GET_SESSION' }, (response: { session?: any } | undefined) => {
-            if (!response?.session) return;
-            isOpen = true;
-            setHostOpen();
-            persistSidebarOpen(true);
-            console.log('Sidebar opened');
-        });
-    } else if (msg.type === 'CLOSE_SIDEBAR') {
-        isOpen = false;
-        setHostClosed();
-        persistSidebarOpen(false);
-        console.log('Sidebar closed');
-    } else if (msg.type === 'GET_SIDEBAR_OPEN') {
-        sendResponse({ open: isOpen });
-        return true;
-    } else if (msg.type === 'GET_ACTIVE_SPEAKER') {
-        const leadName = getLeadName();
-        sendResponse({ activeSpeaker: leadName });
-        return true;
-    } else if (msg.type === 'STATUS_UPDATE' && window.location.hostname === 'meet.google.com') {
-        if (msg.status === 'RECORDING') {
-            sendParticipantInfoNow();
-        } else if (msg.status === 'PROGRAMMED' || msg.status === 'ERROR') {
-            stopParticipantMonitoring();
-            stopMicStateMonitoring();
-        }
+    } catch (err) {
+        console.error('Content script message handler error:', err);
     }
 });
-
-console.log('Rendering Sidebar component...');
 
 root.render(
     <React.StrictMode>
         <SimpleSidebar />
     </React.StrictMode>
 );
-
-console.log('Sidebar component rendered. Host element:', host);
-
-// Auto-open logic removed to require user interaction
-// setTimeout(() => {
-//     console.log('Auto-opening sidebar on Google Meet...');
-//     isOpen = true;
-//     host.style.width = '360px';
-
-//     // Notify background to start capture if user is logged in
-//     chrome.runtime.sendMessage({ type: 'START_CAPTURE' }).catch(() => {
-//         console.log('Background not ready or user not logged in');
-//     });
-// }, 2000); // 2 second delay
 

@@ -1,12 +1,13 @@
 import OpenAI from 'openai';
 import { env } from '../../shared/config/env.js';
+import { logger } from '../../shared/utils/logger.js';
 import { UsageTracker, UsageInfo } from './usage-tracker.js';
 
 export class OpenAIClient {
     private client: OpenAI;
 
     constructor() {
-        this.client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+        this.client = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60_000 });
     }
 
     async streamCoaching(systemPrompt: string, userPrompt: string, callId?: string): Promise<string> {
@@ -41,7 +42,7 @@ export class OpenAIClient {
         }
 
         if (callId && usage) {
-            UsageTracker.logOpenAI({ callId }, 'streamCoaching', usage).catch(() => { });
+            UsageTracker.logOpenAI({ callId }, 'streamCoaching', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
         }
 
         return fullResponse;
@@ -67,7 +68,7 @@ export class OpenAIClient {
                 total_tokens: response.usage.total_tokens,
                 model: 'gpt-4.1-mini',
             };
-            UsageTracker.logOpenAI({ callId }, 'analyzePostCall', usage).catch(() => { });
+            UsageTracker.logOpenAI({ callId }, 'analyzePostCall', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
         }
 
         return response.choices[0]?.message?.content || '{}';
@@ -108,7 +109,7 @@ export class OpenAIClient {
         }
 
         if (callId && usage) {
-            UsageTracker.logOpenAI({ callId }, 'streamCoachingTokens', usage).catch(() => { });
+            UsageTracker.logOpenAI({ callId }, 'streamCoachingTokens', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
         }
     }
 
@@ -133,14 +134,14 @@ export class OpenAIClient {
                     total_tokens: response.usage.total_tokens,
                     model: 'gpt-4.1-mini',
                 };
-                UsageTracker.logOpenAI({ callId }, 'completeJson', usage).catch(() => { });
+                UsageTracker.logOpenAI({ callId }, 'completeJson', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
             }
 
             const content = response.choices[0]?.message?.content;
             if (!content) return null;
             return JSON.parse(content) as T;
         } catch (error) {
-            console.error("OpenAI completeJson Error", error);
+            logger.error({ err: error }, 'OpenAI completeJson failed');
             return null;
         }
     }

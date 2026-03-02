@@ -1,5 +1,6 @@
 import { CallSession } from "../websocket/server.js";
 import { OpenAIClient } from "./openai-client.js";
+import { logger } from '../../shared/utils/logger.js';
 
 export class PostCallAnalyzer {
   constructor(private openaiClient: OpenAIClient) { }
@@ -266,7 +267,7 @@ ${transcriptText}`;
         raw_analysis: data
       };
     } catch (e) {
-      console.error('Failed to parse post-call analysis', e);
+      logger.error({ err: e }, 'Failed to parse post-call analysis');
       return {};
     }
   }

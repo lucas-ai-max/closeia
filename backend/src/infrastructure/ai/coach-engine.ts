@@ -1,4 +1,5 @@
 import { OpenAIClient } from "./openai-client.js";
+import { logger } from '../../shared/utils/logger.js';
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ Analise e retorne o JSON.Se o lead fez pergunta ou objeção, preencha suggested
 
             return null;
         } catch (error) {
-            console.error("CoachEngine.analyzeTranscription Error", error);
+            logger.error({ err: error }, 'CoachEngine.analyzeTranscription failed');
             return null;
         }
     }

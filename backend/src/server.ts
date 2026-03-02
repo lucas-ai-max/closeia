@@ -33,7 +33,7 @@ server.register(cors, {
         ) {
             cb(null, true);
         } else {
-            console.log(`🚫 CORS BLOCKED: ${origin}`);
+            logger.warn({ origin }, 'CORS blocked');
             cb(new Error(`Not allowed by CORS: ${origin}`), false);
         }
     },
@@ -83,12 +83,27 @@ const start = async () => {
         logger.info(`🚀 Server running on port ${env.PORT}`);
         const { startReprocessJob } = await import('./application/reprocess-call-summary.js');
         startReprocessJob();
-        console.log('🔄 SERVER RESTARTED - CHECKING WATCHER');
+        logger.info('Server restarted');
     } catch (err) {
         logger.error(err);
         process.exit(1);
     }
 };
+
+// Graceful Shutdown
+async function gracefulShutdown(signal: string) {
+    logger.info({ signal }, 'Received shutdown signal, closing server');
+    try {
+        await server.close();
+        logger.info('Server closed gracefully');
+        process.exit(0);
+    } catch (err) {
+        logger.error({ err }, 'Error during graceful shutdown');
+        process.exit(1);
+    }
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Global Error Handlers to prevent crash
 process.on('uncaughtException', (err) => {

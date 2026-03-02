@@ -1,5 +1,6 @@
 import { OpenAIClient } from "./openai-client.js";
 import { TranscriptChunk } from "../websocket/server.js";
+import { logger } from '../../shared/utils/logger.js';
 
 export interface LiveSummary {
     status: string;
@@ -56,7 +57,7 @@ Gere o Resumo Estratégico em JSON.
                 callId
             );
         } catch (error) {
-            console.error("SummaryAgent Error", error);
+            logger.error({ err: error }, 'SummaryAgent failed');
             return null;
         }
     }

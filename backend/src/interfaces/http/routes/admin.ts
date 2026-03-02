@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../../../infrastructure/supabase/client.js';
+import { logger } from '../../../shared/utils/logger.js';
 
 export async function adminRoutes(fastify: FastifyInstance) {
     fastify.post('/create-user', async (request: any, reply) => {
@@ -21,13 +22,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const managerOrgId = String(organization_id);
 
         try {
-            console.log('Admin Debug: Creating user...', { email, role, organization_id: managerOrgId });
+            logger.info({ email, role, organization_id: managerOrgId }, 'Admin: Creating user');
 
             // 1. Create User in Supabase Auth (metadata com organization_id em string para o trigger)
             let authData, authError;
 
             try {
-                console.log('Admin Debug: Attempting creation with auto-confirm...');
+                logger.debug('Admin: Attempting creation with auto-confirm');
                 const result = await supabaseAdmin.auth.admin.createUser({
                     email,
                     password,
@@ -41,10 +42,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 authData = result.data;
                 authError = result.error;
             } catch (err: any) {
-                console.error('Admin Debug: Auto-confirm attempt failed', err);
+                logger.error({ err }, 'Admin: Auto-confirm attempt failed');
                 // Fallback if auto-confirm fails (e.g. key issue)
                 if (err.message?.includes('service_role key')) {
-                    console.log('Admin Debug: Retrying without auto-confirm');
+                    logger.warn('Admin: Retrying without auto-confirm');
                     const result = await supabaseAdmin.auth.admin.createUser({
                         email,
                         password,
@@ -63,9 +64,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
             }
 
             if (authError) {
-                console.error('Admin Debug: Auth Error returned', authError);
+                logger.error({ err: authError }, 'Admin: Auth Error returned');
                 if (authError.message?.includes('service_role key')) {
-                    console.log('Admin Debug: Retrying without auto-confirm (from error obj)');
+                    logger.warn('Admin: Retrying without auto-confirm (from error obj)');
                     const result = await supabaseAdmin.auth.admin.createUser({
                         email,
                         password,
@@ -82,7 +83,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
             }
 
             if (authError) {
-                console.error('Admin Debug: Final Auth Error', authError);
+                logger.error({ err: authError }, 'Admin: Final Auth Error');
                 throw authError; // This will start the catch block below
             }
 
@@ -91,7 +92,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 return reply.code(500).send({ error: 'User not created' });
             }
 
-            console.log('Admin Debug: User created, ID:', user.id);
+            logger.info({ userId: user.id }, 'Admin: User created');
 
             // 2. Garantir perfil na organização do gerente e role SELLER (trigger pode ter criado org errada + MANAGER)
             const profilePayload = {
@@ -114,18 +115,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
                     .select()
                     .single();
                 if (insertError) {
-                    console.error('Admin Debug: Profile update/insert error', updateError || insertError);
+                    logger.error({ err: updateError || insertError }, 'Admin: Profile update/insert error');
                     request.log.warn({ updateError, insertError }, 'Profile fix failed');
                 }
             } else {
-                console.log('Admin Debug: Profile updated to org', managerOrgId, 'role SELLER');
+                logger.info({ organization_id: managerOrgId }, 'Admin: Profile updated to org, role SELLER');
             }
 
             return { success: true, user: { id: user.id, email: user.email } };
 
         } catch (error: any) {
             const message = error?.message || String(error);
-            console.error('Admin Debug: Catch Block Error', error);
+            logger.error({ err: error }, 'Admin: Failed to create user');
             request.log.error({ error }, 'Failed to create user');
             if (message.includes('already been registered') || message.includes('already exists') || message.includes('User already registered')) {
                 return reply.code(400).send({ error: 'Este e-mail já está cadastrado.' });
