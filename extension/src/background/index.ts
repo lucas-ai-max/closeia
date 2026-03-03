@@ -256,6 +256,18 @@ onWsMessage(async (data: any) => {
         }
     }
 
+    // Handle transcription errors from backend (Deepgram connection failure etc.)
+    if (data.type === 'transcription:error') {
+        console.error('❌ TRANSCRIPTION ERROR:', data.payload?.message);
+        const state = await getState();
+        if (state.currentTabId) {
+            chrome.tabs.sendMessage(state.currentTabId, {
+                type: 'TRANSCRIPTION_ERROR',
+                data: { message: data.payload?.message || 'Transcription service unavailable' }
+            }).catch(() => { });
+        }
+    }
+
     // Handle objection:detected from backend SPIN coach
     if (data.type === 'objection:detected') {
         console.log('⚡ OBJECTION DETECTED:', data.payload?.objection?.substring(0, 50));

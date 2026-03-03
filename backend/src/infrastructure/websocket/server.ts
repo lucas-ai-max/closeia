@@ -502,7 +502,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             sessionData = {
                                 callId: callId ?? '',
                                 userId: userId ?? '',
-                                scriptId: (existingCallById?.script_id ?? scriptId ?? 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') as string,
+                                scriptId: (existingCallById?.script_id ?? scriptId ?? null) as string,
                                 transcript: dbTranscript,
                                 currentStep: 0,
                                 chunksSinceLastCoach: 0,
@@ -515,7 +515,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         await redis.set(`call:${callId}:session`, sessionData, 3600);
                         await redis.set(`user:${userId}:current_call`, callId, 14400);
                         if (callId) await setupCommandSubscription(callId, ws);
-                        if (useDeepgram) initDeepgramClients(ws);
+                        if (useDeepgram) await initDeepgramClients(ws);
                         if (ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({ type: 'call:started', payload: { callId: callId } }));
                         }
@@ -575,7 +575,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             sessionData = {
                                 callId: callId ?? '',
                                 userId: userId ?? '',
-                                scriptId: (existingExternalCall.script_id ?? scriptId ?? 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') as string,
+                                scriptId: (existingExternalCall.script_id ?? scriptId ?? null) as string,
                                 transcript: Array.isArray(dbTranscript) ? dbTranscript : [],
                                 currentStep: 0,
                                 chunksSinceLastCoach: 0,
@@ -590,7 +590,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
                         // Subscribe to commands
                         if (callId) await setupCommandSubscription(callId, ws);
-                        if (useDeepgram) initDeepgramClients(ws);
+                        if (useDeepgram) await initDeepgramClients(ws);
 
                         // Confirm
                         if (ws.readyState === WebSocket.OPEN) {
@@ -644,7 +644,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
                         // Re-subscribe to commands
                         if (callId) await setupCommandSubscription(callId, ws);
-                        if (useDeepgram) initDeepgramClients(ws);
+                        if (useDeepgram) await initDeepgramClients(ws);
 
                         // Confirm to client
                         if (ws.readyState === WebSocket.OPEN) {
@@ -757,7 +757,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 };
                 await redis.subscribe(`call:${callId}:commands`, commandHandler);
 
-                if (useDeepgram) initDeepgramClients(ws);
+                if (useDeepgram) await initDeepgramClients(ws);
 
                 // 7. Confirm to Client
                 if (ws.readyState === WebSocket.OPEN) {
@@ -1172,7 +1172,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             }
         }
 
-        function initDeepgramClients(ws: WebSocket): void {
+        async function initDeepgramClients(ws: WebSocket): Promise<void> {
             dgLeadClient = new DeepgramRealtimeClient('lead');
             dgSellerClient = new DeepgramRealtimeClient('seller');
             const setupCallbacks = (client: DeepgramRealtimeClient, role: 'seller' | 'lead'): void => {
@@ -1194,6 +1194,9 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 };
                 client.onError = (err: Error) => {
                     logger.error({ err }, `❌ Deepgram [${role}] stream error`);
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'transcription:error', payload: { message: `Deepgram [${role}]: ${err.message}` } }));
+                    }
                 };
             };
             setupCallbacks(dgLeadClient, 'lead');
@@ -1208,9 +1211,26 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 if (sessionData.webmHeader[0]) dgLeadClient.setWebmHeader(sessionData.webmHeader[0]);
                 if (sessionData.webmHeader[1]) dgSellerClient.setWebmHeader(sessionData.webmHeader[1]);
             }
-            dgLeadClient.connect().catch(err => logger.error({ err }, '❌ Deepgram [lead] connect failed'));
-            dgSellerClient.connect().catch(err => logger.error({ err }, '❌ Deepgram [seller] connect failed'));
-            logger.info(`🔌 Deepgram clients initialized for call ${callId}`);
+
+            const results = await Promise.allSettled([
+                dgLeadClient.connect(),
+                dgSellerClient.connect()
+            ]);
+            const leadOk = results[0].status === 'fulfilled';
+            const sellerOk = results[1].status === 'fulfilled';
+            if (!leadOk && !sellerOk) {
+                const leadErr = results[0].status === 'rejected' ? results[0].reason : 'unknown';
+                const sellerErr = results[1].status === 'rejected' ? results[1].reason : 'unknown';
+                logger.error({ leadErr, sellerErr }, '❌ Both Deepgram clients failed to connect');
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'transcription:error', payload: { message: 'Deepgram connection failed for both channels' } }));
+                }
+            } else if (!leadOk) {
+                logger.warn({ err: results[0].status === 'rejected' ? results[0].reason : null }, '⚠️ Deepgram [lead] connect failed, [seller] OK');
+            } else if (!sellerOk) {
+                logger.warn({ err: results[1].status === 'rejected' ? results[1].reason : null }, '⚠️ Deepgram [seller] connect failed, [lead] OK');
+            }
+            logger.info(`🔌 Deepgram clients initialized for call ${callId} (lead=${leadOk}, seller=${sellerOk})`);
         }
 
         /** Close Deepgram clients gracefully. */

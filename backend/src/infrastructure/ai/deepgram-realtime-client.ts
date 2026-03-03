@@ -18,6 +18,8 @@ const DEEPGRAM_QUERY_PARAMS: Record<string, string> = {
 
 const KEEPALIVE_INTERVAL_MS = 3_000;
 const RECONNECT_DELAY_MS = 1_000;
+const CONNECT_TIMEOUT_MS = 10_000;
+const MAX_RECONNECT_ATTEMPTS = 3;
 const DG_SILENCE_CLOSE_MS = env.DG_SILENCE_CLOSE_MS;
 const DG_DEBUG = env.DG_DEBUG;
 
@@ -61,11 +63,12 @@ export class DeepgramRealtimeClient {
     private ws: WebSocket | null = null;
     private keepAliveTimer: NodeJS.Timeout | null = null;
     private silenceTimer: NodeJS.Timeout | null = null;
-    private hasReconnected = false;
+    private reconnectCount = 0;
     private isClosed = false;
     private isSilenceClosed = false;
     private role: string;
     private pendingAudio: Buffer[] = [];
+    private droppedAudioCount = 0;
     private lastSpeechAt: number = Date.now();
     private webmHeader: Buffer | null = null;
 
@@ -93,14 +96,15 @@ export class DeepgramRealtimeClient {
         this.isSilenceClosed = false;
         this.lastSpeechAt = Date.now();
 
-        return new Promise<void>((resolve, reject) => {
+        const connectPromise = new Promise<void>((resolve, reject) => {
             this.ws = new WebSocket(url, {
                 headers: { Authorization: `Token ${apiKey}` },
             });
 
             this.ws.on('open', () => {
                 logger.info(`🎙️ Deepgram [${this.role}] connected`);
-                this.hasReconnected = false;
+                this.reconnectCount = 0;
+                this.droppedAudioCount = 0;
                 this.startKeepAlive();
                 this.startSilenceWatcher();
                 if (this.webmHeader) {
@@ -136,6 +140,19 @@ export class DeepgramRealtimeClient {
                 reject(err);
             });
         });
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => {
+                if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+                    this.ws.removeAllListeners();
+                    this.ws.terminate();
+                    this.ws = null;
+                }
+                reject(new Error(`Deepgram [${this.role}] connect timeout after ${CONNECT_TIMEOUT_MS}ms`));
+            }, CONNECT_TIMEOUT_MS);
+        });
+
+        return Promise.race([connectPromise, timeoutPromise]);
     }
 
     /** Cache the WebM init segment so it can be resent on reconnect. */
@@ -156,6 +173,11 @@ export class DeepgramRealtimeClient {
         }
 
         if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+            this.droppedAudioCount++;
+            if (this.droppedAudioCount <= 3 || this.droppedAudioCount % 100 === 0) {
+                const state = this.ws?.readyState ?? 'null';
+                logger.warn({ droppedCount: this.droppedAudioCount, wsState: state }, `Deepgram [${this.role}] audio dropped: ws not connected`);
+            }
             return;
         }
         if (this.ws.readyState === WebSocket.CONNECTING) {
@@ -290,19 +312,25 @@ export class DeepgramRealtimeClient {
     }
 
     private attemptReconnect(): void {
-        if (this.isClosed || this.hasReconnected) return;
-        this.hasReconnected = true;
+        if (this.isClosed) return;
+        if (this.reconnectCount >= MAX_RECONNECT_ATTEMPTS) {
+            logger.error(`Deepgram [${this.role}] max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached, giving up`);
+            this.onError(new Error(`Deepgram [${this.role}] failed after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`));
+            return;
+        }
 
-        logger.info(`🎙️ Deepgram [${this.role}] attempting reconnect in ${RECONNECT_DELAY_MS}ms...`);
+        this.reconnectCount++;
+        const delay = RECONNECT_DELAY_MS * Math.pow(2, this.reconnectCount - 1);
+        logger.info(`🎙️ Deepgram [${this.role}] attempting reconnect ${this.reconnectCount}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`);
 
         setTimeout(async () => {
             try {
                 await this.connect();
                 logger.info(`🎙️ Deepgram [${this.role}] reconnected successfully`);
             } catch (err) {
-                logger.error({ err }, `🎙️ Deepgram [${this.role}] reconnect failed`);
-                this.onError(err instanceof Error ? err : new Error(String(err)));
+                logger.error({ err }, `🎙️ Deepgram [${this.role}] reconnect ${this.reconnectCount}/${MAX_RECONNECT_ATTEMPTS} failed`);
+                this.attemptReconnect();
             }
-        }, RECONNECT_DELAY_MS);
+        }, delay);
     }
 }
