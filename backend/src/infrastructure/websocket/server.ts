@@ -112,6 +112,8 @@ function isHallucination(text: string): boolean {
 }
 
 const DEDUP_WINDOW_MS = 8000; // 8s (segmentos 3s + latência Whisper)
+/** Janela curta para eco/leakage: só descartar se o outro canal falou há pouco (evita esconder fala legítima do vendedor). */
+const LEAKAGE_ECHO_WINDOW_MS = 3500;
 
 function normalizeText(text: string): string {
     return text
@@ -134,7 +136,23 @@ function textsAreSimilar(a: string, b: string): boolean {
     return intersection / union > 0.5;
 }
 
-/** Lead tem prioridade: se seller diz o mesmo que o lead = eco → descartar seller. */
+/** Similaridade forte: quase idêntico ou um contém o outro (para eco/leakage sem descartar fala do vendedor). */
+function textsAreStronglySimilar(a: string, b: string): boolean {
+    const normA = normalizeText(a);
+    const normB = normalizeText(b);
+    if (normA === normB) return true;
+    if (normA.includes(normB) || normB.includes(normA)) return true;
+    const wordsA = normA.split(' ').filter((w) => w.length > 1);
+    const wordsB = normB.split(' ').filter((w) => w.length > 1);
+    if (wordsA.length === 0 || wordsB.length === 0) return false;
+    const setA = new Set(wordsA);
+    const setB = new Set(wordsB);
+    const intersection = wordsA.filter((w) => setB.has(w)).length;
+    const union = new Set([...wordsA, ...wordsB]).size;
+    return union > 0 && intersection / union >= 0.85;
+}
+
+/** Lead tem prioridade: duplicatas do mesmo canal descartam; eco/leakage só se texto muito parecido e canal oposto falou há pouco. */
 function shouldDiscard(
     text: string,
     role: string,
@@ -149,31 +167,32 @@ function shouldDiscard(
     );
 
     for (const r of session.recentTranscriptions) {
-        if (!textsAreSimilar(text, r.text)) continue;
+        const sameRole = r.role === role;
+        const otherRoleRecent = (now - r.timestamp) <= LEAKAGE_ECHO_WINDOW_MS;
 
-        // SAME ROLE DUPLICATION (Whisper transcribing same audio multiple times)
-        if (r.role === role) {
+        // SAME ROLE DUPLICATION (Whisper/Deepgram transcrevendo o mesmo áudio várias vezes)
+        if (sameRole && textsAreSimilar(text, r.text)) {
             logger.info(
                 `🔇 Duplicate filtered [${role}]: "${text.slice(0, 50)}..." (same text from same role)`
             );
             return true;
         }
 
-        // CROSS-CHANNEL ECHO/LEAKAGE
+        // CROSS-CHANNEL ECHO/LEAKAGE: só descartar se for MUITO parecido e o outro canal falou há poucos segundos
+        if (sameRole || !otherRoleRecent) continue;
+        if (!textsAreStronglySimilar(text, r.text)) continue;
 
-        // Case 1: Active Role is Seller (Mic), matched with recent Lead (Tab).
-        // Lead said it first, now Seller matches = Leakage (Lead's voice in Mic)
+        // Case 1: Seller (mic) = leakage (voz do cliente no microfone)
         if (role === 'seller') {
             logger.info(
-                `🔇 Leakage filtered [seller]: "${text.slice(0, 50)}..." (matches lead)`
+                `🔇 Leakage filtered [seller]: "${text.slice(0, 50)}..." (matches lead, recent)`
             );
             return true;
         }
 
-        // Case 2: Active Role is Lead (Tab), matched with recent Seller (Mic).
-        // Seller said it first, now Lead matches = Echo (Seller's voice in Tab)
+        // Case 2: Lead (tab) = echo (voz do vendedor na aba)
         if (role === 'lead') {
-            logger.info(`🔇 Echo filtered [lead]: "${text.slice(0, 50)}..." (matches seller)`);
+            logger.info(`🔇 Echo filtered [lead]: "${text.slice(0, 50)}..." (matches seller, recent)`);
             return true;
         }
     }

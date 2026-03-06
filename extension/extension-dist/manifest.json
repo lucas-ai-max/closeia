@@ -8,8 +8,7 @@
     "tabCapture",
     "offscreen",
     "storage",
-    "tabs",
-    "audioCapture"
+    "tabs"
   ],
   "host_permissions": [
     "https://meet.google.com/*",
@@ -25,7 +24,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-DXSih5O4.js"
+        "assets/index.tsx-loader-CJdga48B.js"
       ],
       "matches": [
         "https://meet.google.com/*",
@@ -55,8 +54,8 @@
       ],
       "resources": [
         "assets/theme-UeVto8tc.js",
-        "assets/auth-DmuFIzIA.js",
-        "assets/index.tsx-C1EZ5Dv2.js"
+        "assets/auth-wm7ZfynG.js",
+        "assets/index.tsx-CiF9kUqb.js"
       ],
       "use_dynamic_url": false
     }
