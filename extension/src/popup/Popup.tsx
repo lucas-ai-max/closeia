@@ -1,11 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { authService } from '../services/auth';
-import { Loader2, Mic, Square, LogOut, Monitor, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Loader2, Mic, Square, LogOut, Monitor, PanelRightOpen, PanelRightClose, Lock } from 'lucide-react';
 import { TEXT, TEXT_SECONDARY, TEXT_MUTED, INPUT_BG, INPUT_BORDER, ACCENT_ACTIVE, ACCENT_DANGER, NEON_PINK, NEON_PINK_LIGHT, RADIUS } from '../lib/theme';
+import { dashboardUrl } from '../config/env';
 
 const BG_CARD = 'rgba(255,255,255,0.04)';
 const BORDER_PINK = 'rgba(255, 0, 122, 0.25)';
 const logoUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL ? chrome.runtime.getURL('logo.svg') : '/logo.svg';
+
+const PLAN_LABELS: Record<string, string> = {
+    FREE: 'Grátis',
+    STARTER: 'Starter',
+    PRO: 'Pro',
+    TEAM: 'Team',
+    ENTERPRISE: 'Enterprise',
+};
+
+const PLAN_COLORS: Record<string, string> = {
+    FREE: '#6b7280',
+    STARTER: '#f59e0b',
+    PRO: '#8b5cf6',
+    TEAM: '#3b82f6',
+    ENTERPRISE: '#ec4899',
+};
 
 interface TabOption {
     id: number;
@@ -39,6 +56,7 @@ export default function Popup() {
     const [isMeetOrZoomTab, setIsMeetOrZoomTab] = useState(false);
     const [activeTabId, setActiveTabId] = useState<number | null>(null);
     const [showResultModal, setShowResultModal] = useState(false);
+    const [currentPlan, setCurrentPlan] = useState<string | null>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const CALL_RESULTS = [
@@ -58,6 +76,9 @@ export default function Popup() {
                 setLoading(false);
                 setSession(sess);
                 authService.restoreSessionInMemory(sess).catch(() => {});
+                authService.fetchOrganizationPlan().then((orgData) => {
+                    if (orgData) setCurrentPlan(orgData.plan);
+                }).catch(() => {});
             }
         };
         const setNoSession = () => {
@@ -205,6 +226,8 @@ export default function Popup() {
         setSession(null);
     };
 
+    const isFreePlan = currentPlan === 'FREE' || currentPlan === null;
+
     const toggleCapture = async (result?: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' | 'UNKNOWN') => {
         const tabId = status === 'RECORDING' ? undefined : (selectedTabId ?? tabs[0]?.id ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id);
         if (status === 'RECORDING') {
@@ -217,6 +240,10 @@ export default function Popup() {
             setRecordingStartedAt(null);
             chrome.runtime.sendMessage({ type: 'STOP_CAPTURE', result });
         } else {
+            if (isFreePlan) {
+                setError('Ative um plano para usar o coaching IA. Comece com 7 dias grátis!');
+                return;
+            }
             setLoading(true);
             try {
                 const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -343,6 +370,55 @@ export default function Popup() {
 
     const isRecording = status === 'RECORDING';
 
+    if (isFreePlan && !isRecording) {
+        return (
+            <div style={{ ...base, justifyContent: 'flex-start' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
+                    <img src={logoUrl} alt="HelpSeller" style={{ height: 20, width: 'auto' }} />
+                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: TEXT_MUTED, cursor: 'pointer', padding: 2 }} aria-label="Sair">
+                        <LogOut size={14} />
+                    </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <p style={{ fontSize: 10, color: TEXT_SECONDARY, margin: 0 }}>{session.user?.email}</p>
+                    <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                        backgroundColor: `${PLAN_COLORS.FREE}22`, color: PLAN_COLORS.FREE,
+                        border: `1px solid ${PLAN_COLORS.FREE}44`, textTransform: 'uppercase', letterSpacing: '0.04em',
+                    }}>
+                        {PLAN_LABELS[currentPlan || 'FREE'] || 'Grátis'}
+                    </span>
+                </div>
+                <div style={{
+                    flex: 1, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                    padding: '0 12px',
+                }}>
+                    <Lock size={36} style={{ color: NEON_PINK, marginBottom: 14 }} />
+                    <p style={{ fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 6, margin: '0 0 6px 0' }}>Plano ativo necessário</p>
+                    <p style={{ fontSize: 12, color: TEXT_SECONDARY, margin: '0 0 20px 0', lineHeight: 1.5 }}>
+                        Ative um plano para usar o coaching IA em tempo real. Comece com <strong style={{ color: TEXT }}>7 dias grátis!</strong>
+                    </p>
+                    <a
+                        href={`${dashboardUrl}/billing`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            padding: '10px 28px', borderRadius: RADIUS,
+                            background: `linear-gradient(135deg, ${NEON_PINK}, ${NEON_PINK_LIGHT})`,
+                            color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+                            cursor: 'pointer', border: 'none',
+                            boxShadow: `0 0 20px ${NEON_PINK}40`,
+                        }}
+                    >
+                        Escolher plano
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div style={base}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
@@ -351,7 +427,28 @@ export default function Popup() {
                     <LogOut size={14} />
                 </button>
             </div>
-            <p style={{ fontSize: 10, color: TEXT_SECONDARY, marginBottom: 10 }}>{session.user?.email}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <p style={{ fontSize: 10, color: TEXT_SECONDARY, margin: 0 }}>{session.user?.email}</p>
+                {currentPlan && (() => {
+                    const planColor = PLAN_COLORS[currentPlan] || PLAN_COLORS.FREE;
+                    return (
+                        <span style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            backgroundColor: `${planColor}22`,
+                            color: planColor,
+                            border: `1px solid ${planColor}44`,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            flexShrink: 0,
+                        }}>
+                            {PLAN_LABELS[currentPlan] || currentPlan}
+                        </span>
+                    );
+                })()}
+            </div>
 
             {isMeetOrZoomTab && (
                 <div style={{ marginBottom: 10 }}>
@@ -447,6 +544,10 @@ export default function Popup() {
                         ))}
                     </select>
                 </div>
+            )}
+
+            {error && (
+                <p style={{ color: ACCENT_DANGER, fontSize: 11, textAlign: 'center', marginBottom: 8 }}>{error}</p>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'center', flexShrink: 0 }}>

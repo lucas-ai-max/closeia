@@ -28,6 +28,22 @@ const TYPING_SPEED_MS = 18;
 const ACCENT_GREEN = '#22c55e';
 const ACCENT_BLUE = '#3b82f6';
 
+const PLAN_LABELS: Record<string, string> = {
+    FREE: 'Grátis',
+    STARTER: 'Starter',
+    PRO: 'Pro',
+    TEAM: 'Team',
+    ENTERPRISE: 'Enterprise',
+};
+
+const PLAN_COLORS: Record<string, string> = {
+    FREE: '#6b7280',
+    STARTER: '#f59e0b',
+    PRO: '#8b5cf6',
+    TEAM: '#3b82f6',
+    ENTERPRISE: '#ec4899',
+};
+
 function TypingText({ text, animate, cursorColor }: { text: string; animate: boolean; cursorColor: string }) {
     const [displayLen, setDisplayLen] = useState(animate ? 0 : text.length);
     const prevTextRef = useRef(text);
@@ -101,6 +117,7 @@ export default function SimpleSidebar() {
     const [isRecording, setIsRecording] = useState(false);
     const [micAvailable, setMicAvailable] = useState<boolean | null>(null);
     const [isPlanRequired, setIsPlanRequired] = useState(false);
+    const [currentPlan, setCurrentPlan] = useState<string | null>(null);
     const [isMinimized, setIsMinimized] = useState(false);
     const dragRef = useRef({ startX: 0, startY: 0, startLeft: 0, startTop: 0, panelW: SIDEBAR_W, panelH: 300 });
     const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -196,6 +213,13 @@ export default function SimpleSidebar() {
         const sess = await authService.getSession();
         setSession(sess);
         setLoading(false);
+        if (sess) {
+            const orgData = await authService.fetchOrganizationPlan();
+            if (orgData) {
+                setCurrentPlan(orgData.plan);
+                if (orgData.plan === 'FREE') setIsPlanRequired(true);
+            }
+        }
     };
 
     const handleLogout = async () => {
@@ -317,10 +341,22 @@ export default function SimpleSidebar() {
     }
 
     if (isPlanRequired) {
+        const planLabel = currentPlan ? (PLAN_LABELS[currentPlan] || currentPlan) : 'Grátis';
+        const planColor = currentPlan ? (PLAN_COLORS[currentPlan] || PLAN_COLORS.FREE) : PLAN_COLORS.FREE;
         return (
             <div style={{ ...baseContainer, height: '100%', padding: 24, justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                 <Lock size={40} style={{ color: NEON_PINK, marginBottom: 16 }} />
                 <p style={{ fontSize: 16, fontWeight: 700, color: TEXT, marginBottom: 8 }}>Plano necessário</p>
+                <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: TEXT_SECONDARY }}>Seu plano atual:</span>
+                    <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
+                        backgroundColor: `${planColor}22`, color: planColor,
+                        border: `1px solid ${planColor}44`, textTransform: 'uppercase',
+                    }}>
+                        {planLabel}
+                    </span>
+                </div>
                 <p style={{ fontSize: 13, color: TEXT_SECONDARY, marginBottom: 20, lineHeight: 1.5 }}>
                     Para usar o coaching IA em tempo real, ative um plano. Comece com 7 dias grátis!
                 </p>
@@ -351,6 +387,21 @@ export default function SimpleSidebar() {
                     <div style={{ fontSize: 10, fontWeight: 600, color: TEXT_SECONDARY }}>
                         {isRecording ? 'Ao Vivo' : 'Parado'}
                     </div>
+                    {currentPlan && (
+                        <span style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            backgroundColor: `${PLAN_COLORS[currentPlan] || PLAN_COLORS.FREE}22`,
+                            color: PLAN_COLORS[currentPlan] || PLAN_COLORS.FREE,
+                            border: `1px solid ${PLAN_COLORS[currentPlan] || PLAN_COLORS.FREE}44`,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                        }}>
+                            {PLAN_LABELS[currentPlan] || currentPlan}
+                        </span>
+                    )}
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                     <button onClick={toggleMinimize} title="Minimizar" style={{ padding: 4, background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: RADIUS, color: TEXT_SECONDARY, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

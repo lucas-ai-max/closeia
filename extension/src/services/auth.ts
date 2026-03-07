@@ -85,6 +85,28 @@ export const authService = {
         await chrome.storage.local.remove(['supabase_session', 'access_token', 'refresh_token', authKey]);
     },
 
+    async fetchOrganizationPlan(): Promise<{ plan: string; organizationId: string } | null> {
+        try {
+            const { data: { user }, error: userErr } = await supabase.auth.getUser();
+            if (userErr || !user) return null;
+            const { data: profile, error: profErr } = await supabase
+                .from('profiles')
+                .select('organization_id')
+                .eq('id', user.id)
+                .single();
+            if (profErr || !profile?.organization_id) return null;
+            const { data: org, error: orgErr } = await supabase
+                .from('organizations')
+                .select('plan')
+                .eq('id', profile.organization_id)
+                .single();
+            if (orgErr || !org) return null;
+            return { plan: org.plan || 'FREE', organizationId: profile.organization_id };
+        } catch {
+            return null;
+        }
+    },
+
     async getFreshToken(): Promise<string> {
         // 1. Tentar pegar sessão do Supabase (memória)
         let { data: { session }, error } = await supabase.auth.getSession();
