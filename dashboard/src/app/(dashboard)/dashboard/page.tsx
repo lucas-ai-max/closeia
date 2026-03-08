@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { linePathFromData, areaPathFromData } from '@/lib/chart-utils'
+import { usePlanLimits } from '@/components/feature-gate'
+import { Clock, TrendingUp } from 'lucide-react'
 
 const NEON_PINK = '#ff007a'
 const NEON_BLUE = '#00d1ff'
@@ -121,6 +123,16 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>('monthly')
   const chartRef = useRef<SVGSVGElement>(null)
   const supabase = createClient()
+
+  // Plan limits for call hours KPI - must be called before any conditional returns
+  const { plan, limits, usage, loading: planLoading } = usePlanLimits()
+  const hasCallLimit = limits.maxCallHoursPerMonth > 0
+  const usedHours = usage.currentCallHoursThisMonth
+  const maxHours = limits.maxCallHoursPerMonth
+  const remainingHours = maxHours === -1 ? Infinity : Math.max(0, maxHours - usedHours)
+  const usagePercent = maxHours > 0 ? Math.min(100, (usedHours / maxHours) * 100) : 0
+  const isNearLimit = usagePercent >= 80
+  const isAtLimit = usagePercent >= 100
 
   useEffect(() => {
     const t = setTimeout(() => setProgressReady(true), 400)
@@ -449,6 +461,97 @@ export default function DashboardPage() {
   return (
     <>
       <DashboardHeader title="Dashboard" />
+
+      {/* KPI de Uso de Horas de Calls */}
+      {!planLoading && hasCallLimit && (
+        <div
+          className="rounded-[24px] border mb-8 p-6 animate-chart-in opacity-0"
+          style={{
+            backgroundColor: '#1e1e1e',
+            borderColor: isAtLimit ? 'rgba(239, 68, 68, 0.3)' : isNearLimit ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255,255,255,0.05)',
+            animationDelay: '0ms',
+          }}
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            {/* Info */}
+            <div className="flex items-start gap-4">
+              <div
+                className="p-3 rounded-2xl shrink-0"
+                style={{
+                  backgroundColor: isAtLimit ? 'rgba(239, 68, 68, 0.1)' : isNearLimit ? 'rgba(234, 179, 8, 0.1)' : `${NEON_GREEN}15`,
+                }}
+              >
+                <Clock
+                  className="w-6 h-6"
+                  style={{ color: isAtLimit ? '#ef4444' : isNearLimit ? '#eab308' : NEON_GREEN }}
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">Uso de Calls do Mês</h3>
+                <p className="text-sm text-gray-400">
+                  Plano {plan} · {maxHours === -1 ? 'Ilimitado' : `${maxHours}h/mês`}
+                </p>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="flex flex-wrap items-center gap-6 md:gap-8">
+              {/* Horas usadas */}
+              <div className="text-center">
+                <p className="text-3xl font-bold text-white">
+                  {usedHours.toFixed(1)}
+                  <span className="text-lg text-gray-500">h</span>
+                </p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Usadas</p>
+              </div>
+
+              {/* Separador */}
+              <div className="hidden md:block w-px h-12 bg-white/10" />
+
+              {/* Horas restantes */}
+              <div className="text-center">
+                <p
+                  className="text-3xl font-bold"
+                  style={{ color: isAtLimit ? '#ef4444' : isNearLimit ? '#eab308' : NEON_GREEN }}
+                >
+                  {maxHours === -1 ? '∞' : remainingHours.toFixed(1)}
+                  {maxHours !== -1 && <span className="text-lg text-gray-500">h</span>}
+                </p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Restantes</p>
+              </div>
+
+              {/* Separador */}
+              <div className="hidden md:block w-px h-12 bg-white/10" />
+
+              {/* Barra de progresso */}
+              <div className="w-full md:w-48">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">{Math.round(usagePercent)}% usado</span>
+                  {isAtLimit && (
+                    <Link
+                      href="/billing"
+                      className="text-xs font-bold px-2 py-1 rounded-lg transition-colors"
+                      style={{ backgroundColor: NEON_PINK, color: 'white' }}
+                    >
+                      Upgrade
+                    </Link>
+                  )}
+                </div>
+                <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${progressReady ? usagePercent : 0}%`,
+                      backgroundColor: isAtLimit ? '#ef4444' : isNearLimit ? '#eab308' : NEON_GREEN,
+                      boxShadow: `0 0 8px ${isAtLimit ? '#ef4444' : isNearLimit ? '#eab308' : NEON_GREEN}`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cards de métricas (4 colunas) */}
       <div

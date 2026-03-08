@@ -297,8 +297,56 @@ onWsMessage(async (data: any) => {
     // Handle errors from backend
     if (data.type === 'error') {
         console.error('❌ BACKEND ERROR:', data.payload);
-        // Optionally notify sidebar
         const state = await getState();
+        const errorCode = data.payload?.code;
+
+        // Handle specific plan limit errors
+        if (errorCode === 'LIMIT_REACHED' || errorCode === 'CALL_HOURS_LIMIT_REACHED') {
+            console.warn('🚫 Call hours limit reached');
+            if (state.currentTabId) {
+                chrome.tabs.sendMessage(state.currentTabId, {
+                    type: 'PLAN_LIMIT_REACHED',
+                    limitType: 'hours',
+                    message: data.payload.message,
+                    plan: data.payload.plan,
+                    currentUsage: data.payload.currentUsage,
+                    maxAllowed: data.payload.maxAllowed,
+                }).catch(() => { });
+            }
+            chrome.runtime.sendMessage({
+                type: 'STATUS_UPDATE',
+                status: 'LIMIT_REACHED',
+                error: data.payload.message,
+            }).catch(() => { });
+            return;
+        }
+
+        if (errorCode === 'NO_PLAN' || errorCode === 'NO_ACTIVE_PLAN') {
+            console.warn('🚫 No active plan');
+            if (state.currentTabId) {
+                chrome.tabs.sendMessage(state.currentTabId, {
+                    type: 'PLAN_REQUIRED',
+                    message: data.payload.message,
+                }).catch(() => { });
+            }
+            chrome.runtime.sendMessage({ type: 'STATUS_UPDATE', status: 'PLAN_REQUIRED' }).catch(() => { });
+            return;
+        }
+
+        if (errorCode === 'FEATURE_NOT_AVAILABLE') {
+            console.warn('🚫 Feature not available:', data.payload.feature);
+            if (state.currentTabId) {
+                chrome.tabs.sendMessage(state.currentTabId, {
+                    type: 'FEATURE_BLOCKED',
+                    feature: data.payload.feature,
+                    message: data.payload.message,
+                    requiredPlan: data.payload.requiredPlan,
+                }).catch(() => { });
+            }
+            return;
+        }
+
+        // Generic error notification
         if (state.currentTabId) {
             chrome.tabs.sendMessage(state.currentTabId, {
                 type: 'STATUS_UPDATE',

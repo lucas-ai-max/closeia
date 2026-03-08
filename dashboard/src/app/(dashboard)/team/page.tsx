@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Users, UserPlus, ShieldAlert, Loader2, Trash2, ArrowUpDown, Shield, User, MoreVertical, KeyRound } from 'lucide-react'
+import { Users, UserPlus, ShieldAlert, Loader2, Trash2, ArrowUpDown, Shield, User, MoreVertical, KeyRound, Lock, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
+import { usePlanLimits } from '@/components/feature-gate'
 
 const CARD_STYLE = { backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }
 const NEON_PINK = '#ff007a'
@@ -39,6 +41,12 @@ export default function TeamPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)
   const supabase = createClient()
+
+  // Plan limits
+  const { plan, limits, usage, canAddSeller, loading: planLoading } = usePlanLimits()
+  const sellerCount = members.filter(m => m.role === 'SELLER').length
+  const isAtSellerLimit = limits.maxSellers !== -1 && sellerCount >= limits.maxSellers
+  const isNearSellerLimit = limits.maxSellers !== -1 && sellerCount >= limits.maxSellers - 1 && sellerCount < limits.maxSellers
 
   // Clear feedback after 4s
   useEffect(() => {
@@ -283,19 +291,67 @@ export default function TeamPage() {
         </div>
       )}
 
+      {/* Seller Limit Warning - don't show for FREE plan (max = 0) */}
+      {!planLoading && limits.maxSellers > 0 && (
+        <div className={`rounded-xl px-4 py-3 border flex items-center gap-3 ${
+          isAtSellerLimit
+            ? 'bg-red-500/10 border-red-500/30'
+            : isNearSellerLimit
+              ? 'bg-yellow-500/10 border-yellow-500/30'
+              : 'bg-[#1E1E1E] border-white/5'
+        }`}>
+          <div className={`p-2 rounded-lg ${
+            isAtSellerLimit ? 'bg-red-500/20' : isNearSellerLimit ? 'bg-yellow-500/20' : 'bg-neon-green/10'
+          }`}>
+            <Users className={`w-5 h-5 ${
+              isAtSellerLimit ? 'text-red-400' : isNearSellerLimit ? 'text-yellow-400' : 'text-neon-green'
+            }`} />
+          </div>
+          <div className="flex-1">
+            <p className={`text-sm font-medium ${
+              isAtSellerLimit ? 'text-red-400' : isNearSellerLimit ? 'text-yellow-400' : 'text-white'
+            }`}>
+              {isAtSellerLimit
+                ? `Limite de vendedores atingido`
+                : isNearSellerLimit
+                  ? `Quase no limite de vendedores`
+                  : `Vagas disponíveis`
+              }
+            </p>
+            <p className="text-xs text-gray-500">
+              {sellerCount} de {limits.maxSellers} vendedores no plano {plan}
+              {!isAtSellerLimit && ` (${limits.maxSellers - sellerCount} restante${limits.maxSellers - sellerCount > 1 ? 's' : ''})`}
+            </p>
+          </div>
+          {isAtSellerLimit && (
+            <Link
+              href="/billing"
+              className="shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all hover:opacity-90"
+              style={{ backgroundColor: NEON_PINK }}
+            >
+              <Sparkles className="w-4 h-4" />
+              Fazer upgrade
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Top Row: Create Form + Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Create User Form */}
-        <Card className="bg-[#1E1E1E] border-white/5">
+        <Card className={`bg-[#1E1E1E] border-white/5 ${isAtSellerLimit ? 'opacity-60' : ''}`}>
           <CardHeader>
             <div className="flex items-center gap-2 mb-2">
               <div className="p-2 rounded-lg bg-neon-pink/10">
-                <UserPlus className="w-5 h-5 text-neon-pink" />
+                {isAtSellerLimit ? <Lock className="w-5 h-5 text-gray-500" /> : <UserPlus className="w-5 h-5 text-neon-pink" />}
               </div>
               <CardTitle className="text-xl text-white">Adicionar Vendedor</CardTitle>
             </div>
             <CardDescription>
-              Crie uma nova conta para um membro da sua equipe.
+              {isAtSellerLimit
+                ? `Você atingiu o limite de ${limits.maxSellers} vendedores do plano ${plan}. Faça upgrade para adicionar mais.`
+                : 'Crie uma nova conta para um membro da sua equipe.'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -340,13 +396,18 @@ export default function TeamPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-neon-pink hover:bg-neon-pink/90 text-white font-bold"
-                disabled={loading}
+                className="w-full bg-neon-pink hover:bg-neon-pink/90 text-white font-bold disabled:bg-gray-600 disabled:cursor-not-allowed"
+                disabled={loading || isAtSellerLimit}
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Criando...
+                  </>
+                ) : isAtSellerLimit ? (
+                  <>
+                    <Lock className="w-4 h-4 mr-2" />
+                    Limite atingido
                   </>
                 ) : (
                   "Criar Conta"

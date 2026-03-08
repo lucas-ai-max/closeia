@@ -44,6 +44,9 @@ import { SummaryAgent } from '../ai/summary-agent.js';
 import { UsageTracker } from '../ai/usage-tracker.js';
 import { env } from '../../shared/config/env.js';
 
+// Billing/Plan Limits
+import { checkCallHoursLimit, canUseManagerWhisper } from '../billing/plan-limits.js';
+
 // Types
 export interface CallSession {
     callId: string;
@@ -512,6 +515,42 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 const rawOrgId = profile.organization_id;
                 const orgId = rawOrgId && rawOrgId !== NULL_ORG_UUID ? rawOrgId : null;
                 const safeOrgId = orgId === NULL_ORG_UUID ? null : (orgId ?? null);
+
+                // Check plan limits before starting call
+                const usageCheck = await checkCallHoursLimit(safeOrgId);
+                if (!usageCheck.allowed) {
+                    logger.warn({
+                        userId,
+                        organizationId: safeOrgId,
+                        reason: usageCheck.reason,
+                        plan: usageCheck.plan,
+                        currentUsage: usageCheck.currentUsage,
+                        maxAllowed: usageCheck.maxAllowed,
+                    }, '🚫 Call blocked due to plan limits');
+
+                    const errorMessage = usageCheck.reason === 'LIMIT_REACHED'
+                        ? `CALL_HOURS_LIMIT_REACHED: Você atingiu o limite de ${usageCheck.maxAllowed}h de calls do seu plano ${usageCheck.plan}. Faça upgrade para continuar.`
+                        : `NO_ACTIVE_PLAN: Você precisa de um plano ativo para iniciar chamadas. Acesse /billing para assinar.`;
+
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        payload: {
+                            code: usageCheck.reason,
+                            message: errorMessage,
+                            plan: usageCheck.plan,
+                            currentUsage: usageCheck.currentUsage,
+                            maxAllowed: usageCheck.maxAllowed,
+                        }
+                    }));
+                    return;
+                }
+
+                logger.info({
+                    userId,
+                    plan: usageCheck.plan,
+                    currentUsage: usageCheck.currentUsage,
+                    remainingHours: usageCheck.remainingHours,
+                }, '✅ Plan limits check passed');
 
                 // 0. Check if call already exists for this connection (Idempotency / Re-record same call)
                 if (callId) {
@@ -1371,6 +1410,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         let liveSummaryHandler: ((message: any) => void) | null = null;
 
         let authUser: { id: string } | null = null;
+        let managerOrgId: string | null = null;
+        let managerPlan: string = 'FREE';
         const authPromise = (async () => {
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
             if (error || !user) {
@@ -1384,12 +1425,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 .single();
             const mgrOrgId = (mgrProfile as { organization_id: string | null } | null)?.organization_id;
             if (mgrOrgId) {
+                managerOrgId = mgrOrgId;
                 const { data: mgrOrg } = await supabaseAdmin
                     .from('organizations')
                     .select('plan')
                     .eq('id', mgrOrgId)
                     .single();
                 const mgrPlan = (mgrOrg as { plan?: string } | null)?.plan ?? 'FREE';
+                managerPlan = mgrPlan;
                 if (mgrPlan === 'FREE') {
                     logger.warn(`🚫 Manager ${user.id} rejected: FREE plan`);
                     try { socket.close(4403, 'Active plan required'); } catch { /* already closed */ }
@@ -1401,7 +1444,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 return;
             }
             authUser = user;
-            logger.info(`✅ Manager authenticated: ${user.id}`);
+            logger.info(`✅ Manager authenticated: ${user.id} (plan=${managerPlan})`);
         })();
 
         socket.on('message', async (message: string | Buffer) => {
@@ -1501,12 +1544,28 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         break;
                     }
 
-                    case 'manager:whisper':
+                    case 'manager:whisper': {
                         // Manager sends a coaching tip/whisper to the seller
                         if (!subscribedCallId) {
                             socket.send(JSON.stringify({
                                 type: 'error',
                                 payload: { message: 'Not subscribed to any call' }
+                            }));
+                            return;
+                        }
+
+                        // Check if plan has manager_whisper feature
+                        const canWhisper = await canUseManagerWhisper(managerOrgId);
+                        if (!canWhisper) {
+                            logger.warn(`🚫 Manager ${authUser.id} whisper blocked: plan ${managerPlan} does not include manager_whisper feature`);
+                            socket.send(JSON.stringify({
+                                type: 'error',
+                                payload: {
+                                    code: 'FEATURE_NOT_AVAILABLE',
+                                    message: 'O recurso Manager Whisper requer o plano TEAM ou superior. Faça upgrade para usar este recurso.',
+                                    feature: 'manager_whisper',
+                                    requiredPlan: 'TEAM'
+                                }
                             }));
                             return;
                         }
@@ -1536,6 +1595,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             payload: { callId: subscribedCallId }
                         }));
                         break;
+                    }
 
                     default:
                         logger.warn(`Unknown event type from manager: ${event.type}`);

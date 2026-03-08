@@ -74,7 +74,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
     description: 'Para times maiores com visibilidade completa.',
     features: [
       '10 vendedores',
-      '200h de calls/mês',
+      '150h de calls/mês',
       'Torre de comando ao vivo',
       'Manager Whisper',
       'Coaching IA em tempo real',
@@ -87,14 +87,14 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
   {
     slug: 'ENTERPRISE',
     name: 'Enterprise',
-    price: 'R$ 3.997+',
+    price: 'R$ 3.997',
     period: '/mês',
     description: 'Para operações de vendas grandes.',
     isContact: true,
     contactUrl: 'https://wa.me/5511999999999?text=Quero%20conhecer%20o%20plano%20Enterprise',
     features: [
-      'Vendedores ilimitados',
-      'Horas personalizadas',
+      '50 vendedores',
+      '400h de calls/mês',
       'Suporte prioritário',
       'Onboarding dedicado',
       'Integrações personalizadas',

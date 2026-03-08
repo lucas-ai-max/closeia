@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { supabaseAdmin } from '../../../infrastructure/supabase/client.js';
 import { logger } from '../../../shared/utils/logger.js';
+import { checkSellerLimit } from '../../../infrastructure/billing/plan-limits.js';
 
 export async function adminRoutes(fastify: FastifyInstance) {
     fastify.post('/create-user', async (request: any, reply) => {
@@ -20,6 +21,25 @@ export async function adminRoutes(fastify: FastifyInstance) {
         }
 
         const managerOrgId = String(organization_id);
+
+        // Check seller limit before creating user
+        const sellerCheck = await checkSellerLimit(managerOrgId);
+        if (!sellerCheck.allowed) {
+            logger.warn({
+                organization_id: managerOrgId,
+                plan: sellerCheck.plan,
+                currentSellers: sellerCheck.currentSellers,
+                maxSellers: sellerCheck.maxSellers,
+            }, 'Admin: Seller limit reached');
+
+            return reply.code(403).send({
+                error: `Limite de vendedores atingido. Seu plano ${sellerCheck.plan} permite ${sellerCheck.maxSellers} vendedor(es). Faça upgrade para adicionar mais.`,
+                code: 'SELLER_LIMIT_REACHED',
+                currentSellers: sellerCheck.currentSellers,
+                maxSellers: sellerCheck.maxSellers,
+                plan: sellerCheck.plan,
+            });
+        }
 
         try {
             logger.info({ email, role, organization_id: managerOrgId }, 'Admin: Creating user');

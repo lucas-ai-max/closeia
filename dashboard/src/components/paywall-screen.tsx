@@ -36,7 +36,7 @@ const QUICK_PLANS: readonly QuickPlan[] = [
     slug: 'TEAM',
     name: 'Team',
     price: 'R$ 1.797/mês',
-    highlight: '10 vendedores · 200h de calls',
+    highlight: '10 vendedores · 150h de calls',
   },
 ] as const
 
