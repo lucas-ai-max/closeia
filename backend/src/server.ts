@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import websocket from '@fastify/websocket';
 import { env, config } from './shared/config/env.js';
 import { logger } from './shared/utils/logger.js';
@@ -37,8 +38,10 @@ server.register(cors, {
             cb(new Error(`Not allowed by CORS: ${origin}`), false);
         }
     },
+    methods: ['GET', 'HEAD', 'PUT', 'DELETE', 'POST', 'PATCH', 'OPTIONS'],
 });
 
+server.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
 server.register(websocket);
 
 // Register Routes

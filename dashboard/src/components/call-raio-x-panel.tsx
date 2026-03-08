@@ -48,6 +48,7 @@ export interface CallForRaioX {
     user?: { full_name?: string };
     lead_profile?: { name?: string };
     script?: { name?: string };
+    coach?: { name?: string };
     summary?: CallSummaryForRaioX;
     transcript?: Array<{ speaker?: string; role?: string; text?: string }>;
 }
@@ -200,8 +201,25 @@ export function CallRaioXPanel({ call, objections, loading, error }: CallRaioXPa
 
     console.log('Rendering RaioX Panel for call:', call.id, 'Data:', analysisData);
 
+    const coachName = call.coach?.name || (call.summary?.raw_analysis as any)?.coach_name;
+
     return (
         <div className="flex flex-col h-full overflow-y-auto p-4 sm:p-5 space-y-4 scrollbar-dark">
+
+            {/* Coach Badge */}
+            {(coachName || true) && (
+                <div className="flex items-center gap-2 text-xs">
+                    <span className="material-icons-outlined text-[14px] text-gray-500">psychology</span>
+                    <span className="text-gray-400">Coach:</span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-medium" style={{
+                        backgroundColor: coachName ? 'rgba(255,0,122,0.1)' : 'rgba(255,255,255,0.05)',
+                        color: coachName ? NEON_PINK : '#9ca3af',
+                        border: `1px solid ${coachName ? 'rgba(255,0,122,0.2)' : 'rgba(255,255,255,0.1)'}`,
+                    }}>
+                        {coachName || 'SPIN Selling (Padrão)'}
+                    </span>
+                </div>
+            )}
 
             {isProcessing ? (
                 <div className="rounded-xl border-2 border-blue-500/30 p-8 text-center shrink-0" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)' }}>

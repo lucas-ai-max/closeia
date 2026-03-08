@@ -48,10 +48,29 @@ import { env } from '../../shared/config/env.js';
 import { checkCallHoursLimit, canUseManagerWhisper } from '../billing/plan-limits.js';
 
 // Types
+export interface CoachData {
+    name: string;
+    persona?: string;
+    methodology?: string;
+    tone: string;
+    intervention_level: string;
+    product_name?: string;
+    product_description?: string;
+    product_differentials?: string;
+    product_pricing_info?: string;
+    product_target_audience?: string;
+    script_name?: string;
+    script_steps?: any[];
+    script_objections?: any[];
+    script_content?: string;
+}
+
 export interface CallSession {
     callId: string;
     userId: string;
     scriptId: string;
+    coachId?: string;
+    coachData?: CoachData;
     transcript: TranscriptChunk[];
     currentStep: number;
     startedAt?: number;
@@ -492,9 +511,22 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             logger.info({ payload: event.payload }, '📞 handleCallStart initiated');
 
             try {
-                const { scriptId, platform, leadName } = event.payload;
+                const { scriptId, platform, leadName, coachId: payloadCoachId } = event.payload;
                 const externalIdRaw = event.payload?.externalId ?? event.payload?.external_id;
                 const externalId = typeof externalIdRaw === 'string' ? externalIdRaw.trim() || null : null;
+
+                // Fetch coach data if coachId provided
+                let coachData: CoachData | undefined;
+                if (payloadCoachId) {
+                    const { data: coach } = await supabaseAdmin
+                        .from('coaches')
+                        .select('name, persona, methodology, tone, intervention_level, product_name, product_description, product_differentials, product_pricing_info, product_target_audience, script_name, script_steps, script_objections, script_content')
+                        .eq('id', payloadCoachId)
+                        .maybeSingle();
+                    if (coach) {
+                        coachData = coach as CoachData;
+                    }
+                }
                 logger.info({ externalIdReceived: externalId, payloadKeys: Object.keys(event.payload || {}) }, '📞 call:start payload (externalId for re-record)');
 
                 // Get current user org first (needed for reactivation so call stays in correct org)
@@ -771,7 +803,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     status: 'ACTIVE',
                     started_at: new Date().toISOString(),
                     external_id: externalId,
-                    ...(safeOrgId != null && safeOrgId !== '' && { organization_id: safeOrgId })
+                    ...(safeOrgId != null && safeOrgId !== '' && { organization_id: safeOrgId }),
+                    ...(payloadCoachId && { coach_id: payloadCoachId })
                 };
                 logger.info({ rawOrgId, safeOrgId, userId, hasOrgInPayload: 'organization_id' in insertPayload }, '📞 call:insert payload org');
                 const { data: call, error: insertError } = await supabaseAdmin
@@ -809,6 +842,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     callId: call.id ?? '',
                     userId: userId ?? '',
                     scriptId: finalScriptId ?? '',
+                    coachId: payloadCoachId || undefined,
+                    coachData: coachData || undefined,
                     platform: platform ?? undefined,
                     startedAt: new Date().getTime(),
                     transcript: [],
@@ -977,7 +1012,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             let summary: any = null;
             try {
                 summary = await Promise.race([
-                    postCallAnalyzer.generate(sessionData, scriptName, ["Intro", "Discovery", "Close"], resolvedCallId),
+                    postCallAnalyzer.generate(sessionData, scriptName, ["Intro", "Discovery", "Close"], resolvedCallId, sessionData.coachData),
                     new Promise<null>((_, reject) =>
                         setTimeout(() => reject(new Error('Post-call analysis timeout')), POST_CALL_ANALYSIS_TIMEOUT_MS)
                     ),
@@ -1214,7 +1249,10 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 const userPrompt = `Transcrição completa da conversa até agora:\n${fullContext}${sentBlock}\nAnalise e retorne o JSON.Se o lead fez pergunta ou objeção, preencha suggested_response(resposta pronta para o vendedor dizer).Sugira uma pergunta NOVA em suggested_question(não repita as listadas).`;
                 logger.info(`🧠 Coach streaming (${fullContext.length} chars) for call ${callId}`);
                 let fullJson = '';
-                for await (const token of openaiClient.streamCoachingTokens(coachEngine.getSystemPrompt(), userPrompt, callId ?? undefined)) {
+                const systemPrompt = sessionData.coachData
+                    ? coachEngine.getSystemPromptForCoach(sessionData.coachData)
+                    : coachEngine.getSystemPrompt();
+                for await (const token of openaiClient.streamCoachingTokens(systemPrompt, userPrompt, callId ?? undefined)) {
                     fullJson += token;
                     if (ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify({ type: 'coach:token', payload: { token, timestamp: Date.now() } }));

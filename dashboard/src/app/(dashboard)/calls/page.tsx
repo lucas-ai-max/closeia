@@ -138,6 +138,7 @@ export default function CallsPage() {
                     *,
                     user:profiles!user_id(full_name),
                     script:scripts!calls_script_relationship(name),
+                    coach:coaches(name),
                     summary:call_summaries(*)
                 `)
                 .eq('id', callId)
@@ -217,6 +218,7 @@ export default function CallsPage() {
             *,
             user:profiles!user_id(full_name, avatar_url),
             script:scripts!calls_script_relationship(name),
+            coach:coaches(name),
             summary:call_summaries(lead_sentiment, result)
         `;
 

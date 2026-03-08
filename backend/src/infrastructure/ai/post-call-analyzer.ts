@@ -1,11 +1,11 @@
-import { CallSession } from "../websocket/server.js";
+import { CallSession, CoachData } from "../websocket/server.js";
 import { OpenAIClient } from "./openai-client.js";
 import { logger } from '../../shared/utils/logger.js';
 
 export class PostCallAnalyzer {
   constructor(private openaiClient: OpenAIClient) { }
 
-  async generate(session: CallSession, scriptName: string, steps: string[], callId?: string) {
+  async generate(session: CallSession, scriptName: string, steps: string[], callId?: string, coachData?: CoachData) {
     const systemPrompt = `Abaixo eu vou informar uma <ação> para você executar, a <persona> que você representa, e vou explicar os <passos> que você deve seguir para executar a ação. Vou te enviar um conjunto de <dados>, e explicar o <contexto> da situação. Ao final, vou explicar o <formato> da saída, e mostrar um <exemplo> para você seguir.
 
 <ação>
@@ -209,8 +209,22 @@ Orientações 80/20 de linguagem e framing:
       return { result: 'UNKNOWN', lead_sentiment: 'NEUTRAL', ai_notes: 'Transcrição insuficiente para análise.' };
     }
 
+    let productContext = '';
+    if (coachData) {
+      const parts: string[] = [];
+      if (coachData.name) parts.push(`Coach utilizado: ${coachData.name}`);
+      if (coachData.product_name) parts.push(`Produto: ${coachData.product_name}`);
+      if (coachData.product_description) parts.push(`Descrição do Produto: ${coachData.product_description}`);
+      if (coachData.product_differentials) parts.push(`Diferenciais: ${coachData.product_differentials}`);
+      if (coachData.product_pricing_info) parts.push(`Preço: ${coachData.product_pricing_info}`);
+      if (coachData.product_target_audience) parts.push(`Público-Alvo: ${coachData.product_target_audience}`);
+      if (parts.length > 0) {
+        productContext = `\n\nContexto do Produto/Coach:\n${parts.join('\n')}`;
+      }
+    }
+
     const userPrompt = `Script: ${scriptName}
-Etapas: ${steps.join(' → ')}
+Etapas: ${steps.join(' → ')}${productContext}
 
 Transcrição completa:
 ${transcriptText}`;
@@ -264,6 +278,7 @@ ${transcriptText}`;
         ai_notes: data.resumo_ia || 'Nenhum resumo gerado pela IA.',
         lead_sentiment: data.sentimento || 'NEUTRAL',
         result: mappedResult,
+        coach_name: coachData?.name || null,
         raw_analysis: data
       };
     } catch (e) {

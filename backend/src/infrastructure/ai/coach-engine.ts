@@ -1,5 +1,6 @@
 import { OpenAIClient } from "./openai-client.js";
 import { logger } from '../../shared/utils/logger.js';
+import type { CoachData } from '../websocket/server.js';
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -54,14 +55,105 @@ S (Situação) → P (Problema/dor) → I (Implicação) → N (Necessidade). Le
 Regras finais: Só gere "suggested_response" para responder a falas que vieram EXPLICITAMENTE do LEAD. Português brasileiro.
 `;
 
+// Blocos reutilizáveis do prompt (regras de formato que valem para qualquer coach)
+const ROLE_IDENTIFICATION_BLOCK = `
+## IDENTIFICAÇÃO DE PAPÉIS (CRÍTICO)
+Na transcrição fornecida, as falas estão estritamente marcadas com o nome de quem falou:
+- Falas marcadas como **"VENDEDOR: "** (ou o nome do vendedor) são do coachee (você está ajudando esta pessoa).
+- Falas marcadas como **"LEAD: "** (ou o nome do cliente) são do cliente/prospect.
+NUNCA confunda quem disse o quê. Leia as etiquetas antes de cada frase com máxima atenção.`;
+
+const RESPONSE_RULES_BLOCK = `
+## RESPOSTA AO CLIENTE (suggested_response)
+Sempre que o LEAD fizer uma pergunta, levantar objeção (preço, tempo, "me manda material", desconfiança) ou dúvida, preencha "suggested_response" com a frase PRONTA que o vendedor deve dizer ao cliente — 1 ou 2 frases curtas.
+Se o lead NÃO perguntou e NÃO objetou, use suggested_response: null.
+
+## PERGUNTA SUGERIDA (suggested_question)
+Pergunta que o vendedor deve FAZER ao lead (próximo passo da metodologia). NÃO repita as "Perguntas já enviadas". Se não houver pergunta nova útil, use null.
+
+## ESTILO
+- CURTO. Máximo 4 linhas no tip. suggested_response: 1–2 frases.
+- PRECISO. Resposta ao cliente usável na hora.`;
+
+const JSON_FORMAT_BLOCK = `
+## JSON OBRIGATÓRIO (retorne APENAS este objeto)
+{
+  "phase": "S" | "P" | "I" | "N",
+  "objection": "tipo da objeção (ex: Preço, Tempo) ou null",
+  "tip": "feedback curto do coach direcionado ao VENDEDOR. Perguntas em **negrito**. Use \\n para quebra.",
+  "suggested_question": "pergunta nova para o vendedor fazer ao lead" | null,
+  "suggested_response": "resposta pronta para o vendedor DIZER ao cliente (não o que o cliente disse)" | null
+}
+Regras finais: Só gere "suggested_response" para responder a falas que vieram EXPLICITAMENTE do LEAD. Português brasileiro.`;
+
 // ─── Coach Engine ─────────────────────────────────────────────
 
 export class CoachEngine {
     constructor(private openaiClient: OpenAIClient) { }
 
-    /** Expose the system prompt for streaming coaching in the WS server. */
+    /** Expose the default SPIN system prompt for streaming coaching in the WS server. */
     getSystemPrompt(): string {
         return SPIN_SYSTEM_PROMPT;
+    }
+
+    /** Build a dynamic system prompt from coach data (persona, product, methodology). */
+    getSystemPromptForCoach(coachData: CoachData): string {
+        const methodology = coachData.methodology || 'SPIN Selling';
+        const tone = coachData.tone || 'CONSULTIVE';
+        const interventionLevel = coachData.intervention_level || 'MEDIUM';
+
+        const toneDesc: Record<string, string> = {
+            'AGGRESSIVE': 'direto, assertivo, desafiador',
+            'CONSULTIVE': 'consultivo, equilibrado, profissional',
+            'EMPATHETIC': 'empático, acolhedor, paciente',
+        };
+
+        const interventionDesc: Record<string, string> = {
+            'HIGH': 'intervenha frequentemente com dicas proativas',
+            'MEDIUM': 'intervenha quando necessário, equilibrando autonomia e suporte',
+            'LOW': 'intervenha apenas em momentos críticos (objeções, sinais de compra)',
+        };
+
+        let productBlock = '';
+        if (coachData.product_name || coachData.product_description) {
+            productBlock = `
+## PRODUTO QUE O VENDEDOR ESTÁ OFERECENDO
+${coachData.product_name ? `Nome: ${coachData.product_name}` : ''}
+${coachData.product_description ? `Descrição: ${coachData.product_description}` : ''}
+${coachData.product_differentials ? `Diferenciais: ${coachData.product_differentials}` : ''}
+${coachData.product_pricing_info ? `Informações de Preço: ${coachData.product_pricing_info}` : ''}
+${coachData.product_target_audience ? `Público-Alvo: ${coachData.product_target_audience}` : ''}
+Use essas informações do produto para dar respostas mais precisas e contextuais ao vendedor.`;
+        }
+
+        let personaBlock = '';
+        if (coachData.persona) {
+            personaBlock = `
+## SUA IDENTIDADE
+${coachData.persona}`;
+        }
+
+        return `
+Você é um Coach de Vendas em tempo real auxiliando o VENDEDOR.
+${coachData.name ? `Seu nome é: ${coachData.name}.` : ''}
+Duas funções principais:
+1) Sugerir PERGUNTAS que o vendedor deve fazer ao lead (seguindo a metodologia ${methodology}).
+2) Sugerir a RESPOSTA exata que o vendedor deve dar quando o lead pergunta, objeta ou levanta dúvida.
+
+Tom: ${toneDesc[tone] || toneDesc['CONSULTIVE']}.
+Nível de intervenção: ${interventionDesc[interventionLevel] || interventionDesc['MEDIUM']}.
+${personaBlock}
+${ROLE_IDENTIFICATION_BLOCK}
+${RESPONSE_RULES_BLOCK}
+${productBlock}
+
+## METODOLOGIA: ${methodology}
+S (Situação) → P (Problema/dor) → I (Implicação) → N (Necessidade). Lead pergunta/objeta → suggested_response; hora de explorar → suggested_question.
+${coachData.script_content ? `
+## SCRIPT DE VENDAS
+${coachData.script_content}
+Siga as etapas e orientações deste script durante o coaching. Use as perguntas, objeções e argumentos descritos acima como referência para suas sugestões.` : ''}
+${JSON_FORMAT_BLOCK}`;
     }
 
     /**

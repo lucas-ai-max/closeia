@@ -16,7 +16,8 @@ edgeCoach.initialize().then(() => {
 
 let currentLeadName = '';
 let micIsMuted = false; // Track mic mute state
-let lastCallStartParams: { platform: string; scriptId: string | null; leadName?: string; externalId?: string | null } | null = null;
+let lastCallStartParams: { platform: string; scriptId: string | null; coachId?: string | null; leadName?: string; externalId?: string | null } | null = null;
+let selectedCoachId: string | null = null;
 let cachedObjections: CachedObjection[] = [];
 
 let isCallConfirmed = false;
@@ -396,6 +397,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Handle async operations
     const handleAsync = async () => {
         if (message.type === 'START_CAPTURE') {
+            selectedCoachId = message.coachId || null;
             startCapture(message.tabId || sender.tab?.id);
         } else if (message.type === 'STOP_CAPTURE') {
             const result = message.result as 'CONVERTED' | 'LOST' | 'FOLLOW_UP' | 'UNKNOWN' | undefined;
@@ -705,6 +707,7 @@ async function startCapture(explicitTabId?: number) {
             lastCallStartParams = {
                 platform: urlToPlatform(url),
                 scriptId: null, // Backend resolves to first org script when null
+                coachId: selectedCoachId || null,
                 leadName: currentLeadName,
                 externalId: externalId
             };
@@ -793,6 +796,7 @@ async function stopCapture(result?: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' | 'UNKNOW
         callStartRetryIntervalId = null;
     }
     lastCallStartParams = null;
+    selectedCoachId = null;
     audioSegmentBuffer = [];
     isCallConfirmed = false;
 

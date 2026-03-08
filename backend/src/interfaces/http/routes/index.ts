@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middlewares/auth.js';
 import { supabaseAdmin } from '../../../infrastructure/supabase/client.js';
 import { adminRoutes } from './admin.js';
+import { coachRoutes } from './coaches.js';
 
 export async function routes(fastify: FastifyInstance) {
 
@@ -156,6 +157,9 @@ export async function routes(fastify: FastifyInstance) {
 
             return enriched;
         });
+
+        // COACH ROUTES
+        protectedRoutes.register(coachRoutes, { prefix: '/coaches' });
 
         // ADMIN ROUTES
         protectedRoutes.register(adminRoutes, { prefix: '/admin' });

@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { authService } from '../services/auth';
-import { Loader2, Mic, Square, LogOut, Monitor, PanelRightOpen, PanelRightClose, Lock } from 'lucide-react';
+import { Loader2, Mic, Square, LogOut, Monitor, PanelRightOpen, PanelRightClose, Lock, BrainCircuit, ChevronDown, Check } from 'lucide-react';
 import { TEXT, TEXT_SECONDARY, TEXT_MUTED, INPUT_BG, INPUT_BORDER, ACCENT_ACTIVE, ACCENT_DANGER, NEON_PINK, NEON_PINK_LIGHT, RADIUS } from '../lib/theme';
-import { dashboardUrl } from '../config/env';
+import { apiBaseUrl, dashboardUrl } from '../config/env';
+
+interface CoachOption {
+    id: string;
+    name: string;
+    is_default: boolean;
+}
 
 const BG_CARD = 'rgba(255,255,255,0.04)';
 const BORDER_PINK = 'rgba(255, 0, 122, 0.25)';
@@ -28,6 +34,148 @@ interface TabOption {
     id: number;
     title: string;
     url: string;
+}
+
+interface DropdownOption {
+    value: string;
+    label: string;
+    badge?: string;
+}
+
+function CustomDropdown({ options, value, onChange, placeholder, icon }: {
+    options: DropdownOption[];
+    value: string;
+    onChange: (val: string) => void;
+    placeholder?: string;
+    icon?: React.ReactNode;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const selected = options.find(o => o.value === value);
+
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    return (
+        <div ref={ref} style={{ position: 'relative' }}>
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: RADIUS,
+                    border: `1px solid ${open ? NEON_PINK + '60' : BORDER_PINK}`,
+                    background: BG_CARD,
+                    color: selected ? TEXT : TEXT_MUTED,
+                    fontSize: 11,
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s ease',
+                }}
+            >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {selected ? (
+                        <>
+                            {selected.label}
+                            {selected.badge && (
+                                <span style={{
+                                    fontSize: 8,
+                                    fontWeight: 600,
+                                    padding: '1px 5px',
+                                    borderRadius: 4,
+                                    background: `${NEON_PINK}20`,
+                                    color: NEON_PINK,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em',
+                                }}>{selected.badge}</span>
+                            )}
+                        </>
+                    ) : (placeholder || 'Selecione...')}
+                </span>
+                <ChevronDown size={12} style={{
+                    color: TEXT_MUTED,
+                    transition: 'transform 0.15s ease',
+                    transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                    flexShrink: 0,
+                }} />
+            </button>
+            {open && (
+                <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    borderRadius: RADIUS,
+                    border: `1px solid ${NEON_PINK}30`,
+                    background: '#1a1a1a',
+                    boxShadow: `0 8px 24px rgba(0,0,0,0.6), 0 0 12px ${NEON_PINK}10`,
+                    padding: '4px',
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                }}>
+                    {options.length === 0 && (
+                        <div style={{ padding: '8px 10px', fontSize: 10, color: TEXT_MUTED, textAlign: 'center' }}>
+                            Nenhuma opção disponível
+                        </div>
+                    )}
+                    {options.map((opt) => {
+                        const isSelected = opt.value === value;
+                        return (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => { onChange(opt.value); setOpen(false); }}
+                                style={{
+                                    width: '100%',
+                                    padding: '7px 10px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: isSelected ? `${NEON_PINK}15` : 'transparent',
+                                    color: isSelected ? TEXT : TEXT_SECONDARY,
+                                    fontSize: 11,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    textAlign: 'left',
+                                    transition: 'background 0.1s ease',
+                                }}
+                                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? `${NEON_PINK}15` : 'transparent'; }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {opt.label}
+                                    {opt.badge && (
+                                        <span style={{
+                                            fontSize: 8,
+                                            fontWeight: 600,
+                                            padding: '1px 5px',
+                                            borderRadius: 4,
+                                            background: `${NEON_PINK}20`,
+                                            color: NEON_PINK,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.04em',
+                                        }}>{opt.badge}</span>
+                                    )}
+                                </span>
+                                {isSelected && <Check size={12} style={{ color: NEON_PINK, flexShrink: 0 }} />}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
 }
 
 function formatDuration(seconds: number): string {
@@ -57,6 +205,8 @@ export default function Popup() {
     const [activeTabId, setActiveTabId] = useState<number | null>(null);
     const [showResultModal, setShowResultModal] = useState(false);
     const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+    const [coaches, setCoaches] = useState<CoachOption[]>([]);
+    const [selectedCoachId, setSelectedCoachId] = useState<string>('');
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const CALL_RESULTS = [
@@ -182,6 +332,32 @@ export default function Popup() {
         }
     }, [status, recordingStartedAt]);
 
+    // Fetch coaches when session is available
+    useEffect(() => {
+        if (!session) return;
+        const fetchCoaches = async () => {
+            try {
+                const token = await authService.getFreshToken();
+                if (!token) return;
+                const res = await fetch(`${apiBaseUrl}/api/coaches`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const activeCoaches = (data || []).filter((c: any) => c.is_active);
+                    setCoaches(activeCoaches);
+                    const defaultCoach = activeCoaches.find((c: CoachOption) => c.is_default);
+                    if (defaultCoach && !selectedCoachId) {
+                        setSelectedCoachId(defaultCoach.id);
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to fetch coaches:', err);
+            }
+        };
+        fetchCoaches();
+    }, [session]);
+
     useEffect(() => {
         if (!session || status === 'RECORDING') return;
         chrome.tabs.query({ currentWindow: true }, (list) => {
@@ -259,7 +435,8 @@ export default function Popup() {
             setRecordingStartedAt(Date.now());
             chrome.runtime.sendMessage({
                 type: 'START_CAPTURE',
-                tabId: tabId ?? undefined
+                tabId: tabId ?? undefined,
+                coachId: selectedCoachId || undefined
             });
             setLoading(false);
         }
@@ -422,7 +599,23 @@ export default function Popup() {
     return (
         <div style={base}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
-                <img src={logoUrl} alt="HelpSeller" style={{ height: 20, width: 'auto' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={logoUrl} alt="HelpSeller" style={{ height: 20, width: 'auto' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 12, background: BG_CARD, border: `1px solid ${BORDER_PINK}` }}>
+                        <div
+                            style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                background: isRecording ? NEON_PINK : TEXT_MUTED,
+                                animation: isRecording ? 'record-dot 1.2s ease-in-out infinite' : undefined,
+                            }}
+                        />
+                        <span style={{ fontSize: 9, fontWeight: 600, color: isRecording ? NEON_PINK : TEXT_SECONDARY, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {isRecording ? 'Gravando' : 'Parado'}
+                        </span>
+                    </div>
+                </div>
                 <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: TEXT_MUTED, cursor: 'pointer', padding: 2 }} aria-label="Sair">
                     <LogOut size={14} />
                 </button>
@@ -476,21 +669,6 @@ export default function Popup() {
                 </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, padding: '6px 10px', borderRadius: 16, background: BG_CARD, border: `1px solid ${BORDER_PINK}`, width: 'fit-content', flexShrink: 0 }}>
-                <div
-                    style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        background: isRecording ? NEON_PINK : TEXT_MUTED,
-                        animation: isRecording ? 'record-dot 1.2s ease-in-out infinite' : undefined,
-                    }}
-                />
-                <span style={{ fontSize: 10, fontWeight: 600, color: isRecording ? NEON_PINK : TEXT_SECONDARY, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    {isRecording ? 'Gravando' : 'Parado'}
-                </span>
-            </div>
-
             <div
                 style={{
                     textAlign: 'center',
@@ -523,26 +701,34 @@ export default function Popup() {
                         <Monitor size={12} />
                         Aba
                     </label>
-                    <select
-                        value={selectedTabId ?? tabs[0]?.id ?? ''}
-                        onChange={(e) => setSelectedTabId(Number(e.target.value) || null)}
-                        style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            borderRadius: RADIUS,
-                            border: `1px solid ${BORDER_PINK}`,
-                            background: BG_CARD,
-                            color: TEXT,
-                            fontSize: 11,
-                            boxSizing: 'border-box',
-                        }}
-                    >
-                        {tabs.map((tab) => (
-                            <option key={tab.id} value={tab.id}>
-                                {tab.title.length > 32 ? tab.title.slice(0, 32) + '…' : tab.title}
-                            </option>
-                        ))}
-                    </select>
+                    <CustomDropdown
+                        options={tabs.map((tab) => ({
+                            value: String(tab.id),
+                            label: tab.title.length > 36 ? tab.title.slice(0, 36) + '…' : tab.title,
+                        }))}
+                        value={String(selectedTabId ?? tabs[0]?.id ?? '')}
+                        onChange={(val) => setSelectedTabId(Number(val) || null)}
+                        placeholder="Selecione uma aba"
+                    />
+                </div>
+            )}
+
+            {!isRecording && coaches.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 500, marginBottom: 4, color: TEXT_SECONDARY }}>
+                        <BrainCircuit size={12} />
+                        Coach
+                    </label>
+                    <CustomDropdown
+                        options={coaches.map((coach) => ({
+                            value: coach.id,
+                            label: coach.name,
+                            badge: coach.is_default ? 'padrão' : undefined,
+                        }))}
+                        value={selectedCoachId}
+                        onChange={setSelectedCoachId}
+                        placeholder="Nenhum coach disponível"
+                    />
                 </div>
             )}
 

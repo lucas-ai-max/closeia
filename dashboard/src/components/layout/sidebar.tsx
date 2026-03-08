@@ -18,6 +18,7 @@ const navSections = [
       { name: 'Chamadas', href: '/calls', icon: 'call' },
       { name: 'Ao Vivo', href: '/live', icon: 'cell_tower' },
       { name: 'Analytics', href: '/analytics', icon: 'bar_chart' },
+      { name: 'Coaches', href: '/coaches', icon: 'psychology' },
       { name: 'Equipe', href: '/team', icon: 'people' },
       { name: 'Planos', href: '/billing', icon: 'credit_card' },
     ],
@@ -112,7 +113,7 @@ export function Sidebar() {
           navSections.map((section) => {
             const filteredItems = section.items.filter((item) => {
               if (displayRole === 'SELLER') {
-                if (['Scripts', 'Equipe', 'Ao Vivo'].includes(item.name))
+                if (['Scripts', 'Equipe', 'Ao Vivo', 'Coaches'].includes(item.name))
                   return false
               }
               return true

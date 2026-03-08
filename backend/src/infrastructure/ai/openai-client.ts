@@ -113,6 +113,31 @@ export class OpenAIClient {
         }
     }
 
+    async completeText(systemPrompt: string, userPrompt: string, callId?: string): Promise<string> {
+        const response = await this.client.chat.completions.create({
+            model: 'gpt-4.1-mini',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            max_tokens: 4000,
+            temperature: 0.2,
+        });
+
+        if (callId && response.usage) {
+            const usage: UsageInfo = {
+                prompt_tokens: response.usage.prompt_tokens,
+                completion_tokens: response.usage.completion_tokens,
+                cached_tokens: (response.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
+                total_tokens: response.usage.total_tokens,
+                model: 'gpt-4.1-mini',
+            };
+            UsageTracker.logOpenAI({ callId }, 'completeText', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
+        }
+
+        return response.choices[0]?.message?.content || '';
+    }
+
     async completeJson<T>(systemPrompt: string, userPrompt: string, callId?: string): Promise<T | null> {
         try {
             const response = await this.client.chat.completions.create({
