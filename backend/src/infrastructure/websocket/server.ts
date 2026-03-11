@@ -92,6 +92,8 @@ export interface CallSession {
     recentTranscriptions?: Array<{ text: string; role: string; timestamp: number }>;
     webmHeader?: Buffer[];
     sentQuestions?: string[];
+    /** Buffered audio chunks for recording (lead=0, seller=1) */
+    recordingChunks?: { lead: Buffer[]; seller: Buffer[] };
 }
 
 export interface TranscriptChunk {
@@ -1039,11 +1041,63 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 durationSeconds = Math.round((endedAt.getTime() - sessionData.startedAt) / 1000);
             }
 
+            // 5.1 Upload call recordings to Supabase Storage
+            let recordingUrlLead: string | null = null;
+            let recordingUrlSeller: string | null = null;
+            if (sessionData.recordingChunks) {
+                const uploadRecording = async (role: 'lead' | 'seller', chunks: Buffer[], header?: Buffer): Promise<string | null> => {
+                    if (chunks.length === 0) return null;
+                    try {
+                        const parts: Buffer[] = [];
+                        if (header) parts.push(header);
+                        for (const chunk of chunks) {
+                            // Skip header chunks that were already added
+                            if (header && chunk === header) continue;
+                            parts.push(chunk);
+                        }
+                        const fullAudio = Buffer.concat(parts);
+                        if (fullAudio.length < 1000) return null; // Too small, skip
+
+                        const dateStr = endedAt.toISOString().split('T')[0];
+                        const filePath = `${dateStr}/${currentCallIdForRest}_${role}.webm`;
+
+                        const { error } = await supabaseAdmin.storage
+                            .from('call-recordings')
+                            .upload(filePath, fullAudio, {
+                                contentType: 'audio/webm;codecs=opus',
+                                upsert: true,
+                            });
+                        if (error) {
+                            logger.error({ error: error.message, role }, '❌ Failed to upload recording');
+                            return null;
+                        }
+                        const { data: urlData } = supabaseAdmin.storage
+                            .from('call-recordings')
+                            .getPublicUrl(filePath);
+                        logger.info(`✅ Recording uploaded: ${role} (${(fullAudio.length / 1024).toFixed(0)} KB)`);
+                        return urlData.publicUrl;
+                    } catch (err: any) {
+                        logger.error({ err: err?.message, role }, '❌ Recording upload error');
+                        return null;
+                    }
+                };
+                const headerLead = sessionData.webmHeader?.[0];
+                const headerSeller = sessionData.webmHeader?.[1];
+                [recordingUrlLead, recordingUrlSeller] = await Promise.all([
+                    uploadRecording('lead', sessionData.recordingChunks.lead, headerLead),
+                    uploadRecording('seller', sessionData.recordingChunks.seller, headerSeller),
+                ]);
+                // Free memory
+                sessionData.recordingChunks = { lead: [], seller: [] };
+            }
+
             await supabaseAdmin.from('calls').update({
                 status: 'COMPLETED',
                 ended_at: endedAt.toISOString(),
                 duration_seconds: durationSeconds ?? null,
-                transcript: sessionData.transcript, // Save full transcript
+                transcript: sessionData.transcript,
+                recording_url_lead: recordingUrlLead,
+                recording_url_seller: recordingUrlSeller,
             }).eq('id', currentCallIdForRest);
 
             // 6. Save Summary to specific table (only columns that exist in call_summaries)
@@ -1384,6 +1438,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 const idx = role === 'lead' ? 0 : 1;
                 sessionData.webmHeader[idx] = audioBuf;
                 logger.info(`📦 Cached WebM header for ${role} (${audioBuf.length} bytes)`);
+            }
+            // Buffer audio chunks for recording
+            if (sessionData) {
+                if (!sessionData.recordingChunks) sessionData.recordingChunks = { lead: [], seller: [] };
+                sessionData.recordingChunks[role].push(audioBuf);
             }
             if (useDeepgram) {
                 dgAudioChunkCount++;
