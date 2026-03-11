@@ -14,8 +14,6 @@ import {
     Zap,
     Target,
     MessageSquare,
-    Headphones,
-    Mic,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { CallRaioXTabs, FlatAnalysis } from './call-raio-x-tabs';
@@ -226,44 +224,18 @@ export function CallRaioXPanel({ call, objections, loading, error }: CallRaioXPa
                 </div>
             )}
 
-            {/* Recording Player */}
-            {(call.recording_url_video || call.recording_url_lead || call.recording_url_seller) && (
+            {/* Recording Player - unified video with mixed audio */}
+            {call.recording_url_video && (
                 <div className="rounded-xl border border-white/10 bg-black/30 p-4 space-y-3">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Gravacao da chamada</p>
-                    {call.recording_url_video && (
-                        <div className="space-y-2">
-                            <video
-                                controls
-                                preload="metadata"
-                                className="w-full rounded-lg bg-black"
-                                style={{ maxHeight: '300px' }}
-                            >
-                                <source src={call.recording_url_video} type="video/webm" />
-                            </video>
-                        </div>
-                    )}
-                    {call.recording_url_lead && (
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 min-w-[70px]">
-                                <Headphones className="w-3.5 h-3.5 text-blue-400" />
-                                <span className="text-xs text-blue-400 font-medium">Lead</span>
-                            </div>
-                            <audio controls preload="metadata" className="w-full h-8">
-                                <source src={call.recording_url_lead} type="audio/webm" />
-                            </audio>
-                        </div>
-                    )}
-                    {call.recording_url_seller && (
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 min-w-[70px]">
-                                <Mic className="w-3.5 h-3.5" style={{ color: NEON_PINK }} />
-                                <span className="text-xs font-medium" style={{ color: NEON_PINK }}>Seller</span>
-                            </div>
-                            <audio controls preload="metadata" className="w-full h-8">
-                                <source src={call.recording_url_seller} type="audio/webm" />
-                            </audio>
-                        </div>
-                    )}
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Gravação da chamada</p>
+                    <video
+                        controls
+                        preload="metadata"
+                        className="w-full rounded-lg bg-black"
+                        style={{ maxHeight: '300px' }}
+                    >
+                        <source src={call.recording_url_video} type="video/webm" />
+                    </video>
                 </div>
             )}
 

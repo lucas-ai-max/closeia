@@ -829,6 +829,16 @@ async function stopCapture(result?: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' | 'UNKNOW
         // Wait for offscreen to finish video upload before closing
         let videoRecordingUrl: string | null = null;
         try {
+            // Build uploadConfig here (background has chrome.storage access, offscreen does not)
+            const stored = await chrome.storage.local.get(['currentCallId']);
+            const session = await authService.getSession() as any;
+            const uploadConfig = {
+                supabaseUrl: import.meta.env?.VITE_SUPABASE_URL || 'https://cqwfwrfsxuqrosvcvdvw.supabase.co',
+                supabaseAnonKey: import.meta.env?.VITE_SUPABASE_ANON_KEY || '',
+                accessToken: session?.access_token || '',
+                callId: stored.currentCallId || callIdToEnd || '',
+            };
+
             videoRecordingUrl = await new Promise<string | null>((resolve) => {
                 const timeout = setTimeout(() => {
                     console.log('⚠️ Video upload timeout, proceeding without video');
@@ -844,7 +854,7 @@ async function stopCapture(result?: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' | 'UNKNOW
                 };
                 chrome.runtime.onMessage.addListener(listener);
 
-                chrome.runtime.sendMessage({ type: 'STOP_RECORDING' }).catch(() => {
+                chrome.runtime.sendMessage({ type: 'STOP_RECORDING', uploadConfig }).catch(() => {
                     console.log('Offscreen not reachable (already closed?)');
                     clearTimeout(timeout);
                     chrome.runtime.onMessage.removeListener(listener);

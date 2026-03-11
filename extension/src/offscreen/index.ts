@@ -49,7 +49,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
     } else if (message.type === 'STOP_RECORDING') {
         log('📩 STOP_RECORDING received');
-        stopTranscription();
+        stopTranscription(message.uploadConfig);
     } else if (message.type === 'MIC_MUTE_STATE') {
         sellerPaused = !!message.muted;
         log(`🎤 Seller recording ${sellerPaused ? 'PAUSED (mic muted)' : 'RESUMED'}`);
@@ -187,8 +187,8 @@ async function startTranscription(streamId: string) {
         // === 6. Start Video + Audio Streaming for Manager (tela da aba Meet) ===
         await startMediaStreaming(combinedStream);
 
-        // === 7. Start full call video recording (continuous, for playback later) ===
-        startFullCallRecording(combinedStream);
+        // === 7. Start full call video recording (video + mixed tab+mic audio) ===
+        startFullCallRecording(combinedStream, micStream);
 
     } catch (err: any) {
         log('❌ Failed:', err.name, err.message);
@@ -388,12 +388,43 @@ function stopLiveKitPublish(): void {
 
 
 // === Full Call Video Recording (continuous, no restarts) ===
-function startFullCallRecording(stream: MediaStream) {
+// AudioContext used to mix tab + mic audio into a single stream for recording
+let mixerCtx: AudioContext | null = null;
+let mixerDest: MediaStreamAudioDestinationNode | null = null;
+
+function startFullCallRecording(tabVideoStream: MediaStream, micAudioStream?: MediaStream | null) {
     fullCallChunks = [];
+
+    // Mix tab audio + mic audio into one audio track using AudioContext
+    mixerCtx = new AudioContext();
+    mixerDest = mixerCtx.createMediaStreamDestination();
+
+    // Tab audio (lead)
+    const tabAudioTracks = tabVideoStream.getAudioTracks();
+    if (tabAudioTracks.length > 0) {
+        const tabSource = mixerCtx.createMediaStreamSource(new MediaStream(tabAudioTracks));
+        tabSource.connect(mixerDest);
+        log('🔊 Mixed tab audio into recording');
+    }
+
+    // Mic audio (seller)
+    if (micAudioStream && micAudioStream.getAudioTracks().length > 0) {
+        const micSource = mixerCtx.createMediaStreamSource(micAudioStream);
+        micSource.connect(mixerDest);
+        log('🎤 Mixed mic audio into recording');
+    }
+
+    // Build final stream: video from tab + mixed audio
+    const videoTrack = tabVideoStream.getVideoTracks()[0];
+    const mixedAudioTrack = mixerDest.stream.getAudioTracks()[0];
+    const recordingStream = new MediaStream();
+    if (videoTrack) recordingStream.addTrack(videoTrack);
+    if (mixedAudioTrack) recordingStream.addTrack(mixedAudioTrack);
+
     const mimeType = ['video/webm;codecs=opus,vp9', 'video/webm;codecs=opus,vp8', 'video/webm']
         .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
 
-    fullCallRecorder = new MediaRecorder(stream, {
+    fullCallRecorder = new MediaRecorder(recordingStream, {
         mimeType,
         videoBitsPerSecond: 500000, // 500kbps for storage efficiency
         audioBitsPerSecond: 64000,
@@ -410,12 +441,25 @@ function startFullCallRecording(stream: MediaStream) {
     };
 
     fullCallRecorder.start(2000); // 2s chunks
-    log('🎬 Full call video recording started (continuous)');
+    log('🎬 Full call video recording started (video + mixed audio)');
 }
 
-async function stopFullCallRecordingAndUpload(): Promise<string | null> {
+interface UploadConfig {
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+    accessToken: string;
+    callId: string;
+}
+
+async function stopFullCallRecordingAndUpload(config?: UploadConfig): Promise<string | null> {
     if (!fullCallRecorder || fullCallChunks.length === 0) {
         log('⚠️ No full call recording to upload');
+        return null;
+    }
+    if (!config || !config.supabaseUrl || !config.callId) {
+        log('❌ Upload config missing (supabaseUrl or callId)');
+        fullCallChunks = [];
+        fullCallRecorder = null;
         return null;
     }
 
@@ -436,41 +480,20 @@ async function stopFullCallRecordingAndUpload(): Promise<string | null> {
             log(`🎬 Full call recording: ${(blob.size / 1024 / 1024).toFixed(1)} MB, uploading...`);
 
             try {
-                // Get Supabase credentials and auth token from storage
-                const stored = await chrome.storage.local.get(['session']);
-                const accessToken = stored.session?.access_token;
-                const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-                const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-
-                if (!supabaseUrl || !supabaseAnonKey) {
-                    log('❌ Supabase credentials not available for upload');
-                    resolve(null);
-                    return;
-                }
-
-                // Get callId from storage
-                const callState = await chrome.storage.local.get(['currentCallId']);
-                const callId = callState.currentCallId;
-                if (!callId) {
-                    log('❌ No callId available for recording upload');
-                    resolve(null);
-                    return;
-                }
-
+                const { supabaseUrl, supabaseAnonKey, accessToken, callId } = config;
                 const dateStr = new Date().toISOString().split('T')[0];
                 const filePath = `${dateStr}/${callId}_video.webm`;
 
-                // Upload to Supabase Storage via REST API
                 const uploadUrl = `${supabaseUrl}/storage/v1/object/call-recordings/${filePath}`;
                 const headers: Record<string, string> = {
                     'apikey': supabaseAnonKey,
                     'Content-Type': blob.type || 'video/webm',
-                    'x-upsert': 'true',
                 };
                 if (accessToken) {
                     headers['Authorization'] = `Bearer ${accessToken}`;
                 }
 
+                log(`📤 Uploading to: ${uploadUrl}`);
                 const response = await fetch(uploadUrl, {
                     method: 'POST',
                     headers,
@@ -484,7 +507,6 @@ async function stopFullCallRecordingAndUpload(): Promise<string | null> {
                     return;
                 }
 
-                // Get public URL
                 const publicUrl = `${supabaseUrl}/storage/v1/object/public/call-recordings/${filePath}`;
                 log(`✅ Video recording uploaded: ${publicUrl}`);
                 resolve(publicUrl);
@@ -555,7 +577,7 @@ function startRecordingCycle(
     else micRecorder = recorder as MediaRecorder;
 }
 
-async function stopTranscription() {
+async function stopTranscription(uploadConfig?: UploadConfig) {
     log('🛑 Stopping transcription...');
     isRecording = false;
 
@@ -570,7 +592,7 @@ async function stopTranscription() {
     // Upload full call recording before stopping streams
     let videoRecordingUrl: string | null = null;
     try {
-        videoRecordingUrl = await stopFullCallRecordingAndUpload();
+        videoRecordingUrl = await stopFullCallRecordingAndUpload(uploadConfig);
     } catch (err: any) {
         log('⚠️ Video upload failed:', err.message);
     }
@@ -578,12 +600,14 @@ async function stopTranscription() {
     // Stop media streaming (includes LiveKit disconnect)
     stopMediaStreaming();
 
-    // Close all AudioContext instances
+    // Close all AudioContext instances (including mixer used for recording)
     await Promise.allSettled(
-        [playbackContext, tabAnalyserCtx, micAnalyserCtx]
+        [playbackContext, tabAnalyserCtx, micAnalyserCtx, mixerCtx]
             .filter(Boolean)
             .map(ctx => ctx!.close())
     );
+    mixerCtx = null;
+    mixerDest = null;
     playbackContext = null;
     tabAnalyserCtx = null;
     micAnalyserCtx = null;
