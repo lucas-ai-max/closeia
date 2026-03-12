@@ -513,13 +513,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         if (finalSession.startedAt) {
                             durationSeconds = Math.round((endedAt.getTime() - finalSession.startedAt) / 1000);
                         }
-                        await supabaseAdmin.from('calls').update({
+                        const { error: discErr } = await supabaseAdmin.from('calls').update({
                             status: 'COMPLETED',
                             ended_at: endedAt.toISOString(),
                             duration_seconds: durationSeconds ?? null,
                             transcript: finalSession.transcript ?? [],
                         }).eq('id', finalCallId);
-                        logger.info(`🔒 Auto-finalized call ${finalCallId} on disconnect (${durationSeconds}s)`);
+                        if (discErr) {
+                            logger.error({ err: discErr, callId: finalCallId }, '❌ Failed to auto-finalize call on disconnect');
+                        } else {
+                            logger.info(`🔒 Auto-finalized call ${finalCallId} on disconnect (${durationSeconds}s)`);
+                        }
                         await redis.del(`call:${finalCallId}:session`);
                         await redis.del(`user:${authenticatedUser.id}:current_call`);
                     }
@@ -1149,7 +1153,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 logger.info(`🎬 Video recording URL received: ${videoRecordingUrl}`);
             }
 
-            await supabaseAdmin.from('calls').update({
+            const { error: updateErr } = await supabaseAdmin.from('calls').update({
                 status: 'COMPLETED',
                 ended_at: endedAt.toISOString(),
                 duration_seconds: durationSeconds ?? null,
@@ -1158,13 +1162,21 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 recording_url_seller: recordingUrlSeller,
                 recording_url_video: videoRecordingUrl,
             }).eq('id', currentCallIdForRest);
+            if (updateErr) {
+                logger.error({ err: updateErr, callId: currentCallIdForRest }, '❌ Failed to update call to COMPLETED');
+            } else {
+                logger.info({ callId: currentCallIdForRest, durationSeconds }, '✅ Call marked as COMPLETED');
+            }
 
             // 6. Save Summary to specific table (only columns that exist in call_summaries)
             const { pickSummaryRowForDb } = await import('../../shared/call-summary-db.js');
             const summaryRow = summary
                 ? pickSummaryRowForDb(summary as Record<string, unknown>, currentCallIdForRest, resultForDb ?? undefined)
                 : { call_id: currentCallIdForRest, result: resultForDb };
-            await supabaseAdmin.from('call_summaries').upsert(summaryRow, { onConflict: 'call_id' });
+            const { error: summaryErr } = await supabaseAdmin.from('call_summaries').upsert(summaryRow, { onConflict: 'call_id' });
+            if (summaryErr) {
+                logger.error({ err: summaryErr, callId: currentCallIdForRest }, '❌ Failed to upsert call summary');
+            }
             // 7. Clear Redis (permite ao disconnect saber que a call já foi finalizada)
             await redis.del(`call:${currentCallIdForRest}:session`);
             if (sessionData?.userId) await redis.del(`user:${sessionData.userId}:current_call`);
