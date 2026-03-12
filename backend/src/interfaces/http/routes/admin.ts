@@ -1,20 +1,32 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { supabaseAdmin } from '../../../infrastructure/supabase/client.js';
 import { logger } from '../../../shared/utils/logger.js';
 import { checkSellerLimit } from '../../../infrastructure/billing/plan-limits.js';
 
+const CreateUserSchema = z.object({
+    email: z.string().email('Email inválido'),
+    password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+    name: z.string().min(1, 'Nome é obrigatório'),
+});
+
+const UpdatePasswordSchema = z.object({
+    user_id: z.string().uuid('ID do usuário inválido'),
+    new_password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+});
+
 export async function adminRoutes(fastify: FastifyInstance) {
     fastify.post('/create-user', async (request: any, reply) => {
-        const { email, password, name } = request.body;
+        const parsed = CreateUserSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0].message });
+        }
+        const { email, password, name } = parsed.data;
         const { organization_id, role } = request.user;
 
         // Security check: Only managers can create users
         if (role !== 'MANAGER') {
             return reply.code(403).send({ error: 'Unauthorized: Only managers can create users' });
-        }
-
-        if (!email || !password || !name) {
-            return reply.code(400).send({ error: 'Missing required fields' });
         }
         if (!organization_id) {
             return reply.code(400).send({ error: 'Missing organization. Faça login novamente.' });
@@ -160,7 +172,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     /** Alterar senha de um vendedor/membro da organização. Apenas gestor (MANAGER) pode usar. */
     fastify.post('/update-password', async (request: any, reply) => {
-        const { user_id: targetUserId, new_password } = request.body as { user_id?: string; new_password?: string };
+        const parsed = UpdatePasswordSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0].message });
+        }
+        const { user_id: targetUserId, new_password } = parsed.data;
         const { organization_id, role } = request.user;
 
         if (role !== 'MANAGER') {
@@ -168,9 +184,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
         }
         if (!organization_id) {
             return reply.code(400).send({ error: 'Missing organization. Faça login novamente.' });
-        }
-        if (!targetUserId || !new_password || new_password.length < 6) {
-            return reply.code(400).send({ error: 'Informe o usuário e uma nova senha com no mínimo 6 caracteres.' });
         }
 
         try {

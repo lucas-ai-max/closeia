@@ -27,7 +27,14 @@ server.register(cors, {
         // Check if origin matches allowed list
         const allowedOrigins = env.CORS_ORIGIN.split(',');
 
-        // Logic: Exato match, Wildcard, ou Chrome Extension
+        // In production, wildcard CORS is blocked — must set CORS_ORIGIN explicitly
+        if (config.isProd && env.CORS_ORIGIN === '*') {
+            logger.warn({ origin }, 'CORS blocked: wildcard not allowed in production, set CORS_ORIGIN');
+            cb(new Error(`Not allowed by CORS: ${origin}`), false);
+            return;
+        }
+
+        // Logic: Exato match, Wildcard (dev only), ou Chrome Extension
         if (
             allowedOrigins.indexOf(origin) !== -1 ||
             env.CORS_ORIGIN === '*' ||

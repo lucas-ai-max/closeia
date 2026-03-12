@@ -147,7 +147,22 @@ export const authService = {
         }
     },
 
+    _refreshPromise: null as Promise<string> | null,
+
     async getFreshToken(): Promise<string> {
+        // Mutex: if a refresh is already in progress, wait for it
+        if (this._refreshPromise) {
+            return this._refreshPromise;
+        }
+        this._refreshPromise = this._doGetFreshToken();
+        try {
+            return await this._refreshPromise;
+        } finally {
+            this._refreshPromise = null;
+        }
+    },
+
+    async _doGetFreshToken(): Promise<string> {
         // 1. Tentar pegar sessão do Supabase (memória)
         let { data: { session }, error } = await supabase.auth.getSession();
 

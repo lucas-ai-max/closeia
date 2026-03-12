@@ -210,18 +210,21 @@ export default function DashboardPage() {
               .select('*', { count: 'exact', head: true })
               .eq('status', 'COMPLETED')
               .gte('ended_at', rangeStart)
-              .lte('ended_at', rangeEnd),
+              .lte('ended_at', rangeEnd)
+              .then((r: any) => r, () => ({ count: 0, data: null, error: true })),
             supabase
               .from('calls')
               .select('*', { count: 'exact', head: true })
               .eq('status', 'COMPLETED')
-              .gte('started_at', startOfDayIso),
+              .gte('started_at', startOfDayIso)
+              .then((r: any) => r, () => ({ count: 0, data: null, error: true })),
             supabase
               .from('calls')
               .select('id')
               .eq('status', 'COMPLETED')
               .gte('ended_at', rangeStart)
-              .lte('ended_at', rangeEnd),
+              .lte('ended_at', rangeEnd)
+              .then((r: any) => r, () => ({ data: [], error: true })),
             supabase
               .from('calls')
               .select(`
@@ -232,12 +235,14 @@ export default function DashboardPage() {
               `)
               .eq('status', 'COMPLETED')
               .order('ended_at', { ascending: false })
-              .limit(RECENT_CALLS_LIMIT),
+              .limit(RECENT_CALLS_LIMIT)
+              .then((r: any) => r, () => ({ data: [], error: true })),
             supabase
               .from('calls')
               .select('started_at, ended_at')
               .eq('status', 'COMPLETED')
-              .gte('ended_at', chartStartIso),
+              .gte('ended_at', chartStartIso)
+              .then((r: any) => r, () => ({ data: [], error: true })),
             profile?.role === 'MANAGER' && profile?.organizationId
               ? Promise.all([
                 supabase
@@ -254,7 +259,7 @@ export default function DashboardPage() {
                   .from('call_summaries')
                   .select('call_id, result, calls!call_id(user_id)')
                   .eq('result', 'CONVERTED'),
-              ])
+              ]).then((r: any) => r, () => [null, null, null])
               : Promise.resolve([null, null, null]),
           ])
 

@@ -254,14 +254,14 @@ export async function checkCallHoursLimit(organizationId: string | null): Promis
       .lt('started_at', endOfMonth.toISOString());
 
     if (callsError) {
-      logger.warn({ organizationId, error: callsError }, '[PLAN_LIMITS] Failed to fetch calls usage');
-      // Allow call on error to avoid blocking users
+      logger.error({ organizationId, error: callsError }, '[PLAN_LIMITS] Failed to fetch calls usage — denying call');
       return {
-        allowed: true,
+        allowed: false,
+        reason: 'NO_PLAN',
         plan,
         currentUsage: 0,
         maxAllowed: limits.maxCallHoursPerMonth,
-        remainingHours: limits.maxCallHoursPerMonth,
+        remainingHours: 0,
       };
     }
 
@@ -298,10 +298,10 @@ export async function checkCallHoursLimit(organizationId: string | null): Promis
       remainingHours: Math.round(remainingHours * 100) / 100,
     };
   } catch (err) {
-    logger.error({ err, organizationId }, '[PLAN_LIMITS] Error checking call hours limit');
-    // Allow call on error to avoid blocking users
+    logger.error({ err, organizationId }, '[PLAN_LIMITS] Error checking call hours limit — denying call');
     return {
-      allowed: true,
+      allowed: false,
+      reason: 'NO_PLAN',
       plan: 'FREE',
       currentUsage: 0,
       maxAllowed: 0,
@@ -368,9 +368,10 @@ export async function checkSellerLimit(organizationId: string | null): Promise<{
       .eq('is_active', true);
 
     if (countError) {
-      // Allow on error
+      logger.error({ organizationId, error: countError }, '[PLAN_LIMITS] Failed to count sellers — denying');
       return {
-        allowed: true,
+        allowed: false,
+        reason: 'NO_PLAN',
         plan,
         currentSellers: 0,
         maxSellers: limits.maxSellers,
@@ -396,9 +397,10 @@ export async function checkSellerLimit(organizationId: string | null): Promise<{
       maxSellers: limits.maxSellers,
     };
   } catch (err) {
-    logger.error({ err, organizationId }, '[PLAN_LIMITS] Error checking seller limit');
+    logger.error({ err, organizationId }, '[PLAN_LIMITS] Error checking seller limit — denying');
     return {
-      allowed: true,
+      allowed: false,
+      reason: 'NO_PLAN',
       plan: 'FREE',
       currentSellers: 0,
       maxSellers: 0,

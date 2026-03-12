@@ -430,9 +430,14 @@ function startFullCallRecording(tabVideoStream: MediaStream, micAudioStream?: Me
         audioBitsPerSecond: 64000,
     });
 
+    const MAX_RECORDING_CHUNKS = 3600; // ~1h at 1 chunk/sec
     fullCallRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
-            fullCallChunks.push(event.data);
+            if (fullCallChunks.length < MAX_RECORDING_CHUNKS) {
+                fullCallChunks.push(event.data);
+            } else if (fullCallChunks.length === MAX_RECORDING_CHUNKS) {
+                log('⚠️ Recording chunk limit reached, stopping collection');
+            }
         }
     };
 

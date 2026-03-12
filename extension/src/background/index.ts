@@ -827,6 +827,7 @@ async function stopCapture(result?: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' | 'UNKNOW
     lastCallStartParams = null;
     selectedCoachId = null;
     audioSegmentBuffer = [];
+    cachedObjections = [];
     isCallConfirmed = false;
 
     try {

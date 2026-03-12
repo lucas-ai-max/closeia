@@ -16,6 +16,10 @@ import {
 const NEON_PINK = '#ff007a'
 const NEON_GREEN = '#00ff94'
 
+// Cache plan data to avoid refetching on every component mount
+let _planCache: { data: any; fetchedAt: number } | null = null
+const PLAN_CACHE_TTL = 60_000 // 1 minute
+
 // Plan context for caching plan data across components
 interface PlanContextValue {
   plan: PlanSlug
@@ -53,9 +57,22 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
+      // Use cached data if fresh enough
+      if (_planCache && Date.now() - _planCache.fetchedAt < PLAN_CACHE_TTL) {
+        const data = _planCache.data
+        setPlan(data.plan)
+        setUsage(data.usage)
+        setLimits(data.limits)
+        setCanStartCall(data.canStartCall)
+        setCanAddSeller(data.canAddSeller)
+        setLoading(false)
+        return
+      }
+
       const response = await fetch('/api/billing/limits')
       if (response.ok) {
         const data = await response.json()
+        _planCache = { data, fetchedAt: Date.now() }
         setPlan(data.plan)
         setUsage(data.usage)
         setLimits(data.limits)

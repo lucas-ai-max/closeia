@@ -5,6 +5,7 @@ const WS_BASE_URL = `${wsBaseUrl}/ws/call`;
 
 let ws: WebSocket | null = null;
 let messageQueue: string[] = [];
+const MAX_QUEUE_SIZE = 100;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -160,6 +161,9 @@ export function send(type: string, payload: any) {
         }
     } else {
         console.log(`⏳ WS queuing message: ${type} (State: ${ws ? ws.readyState : 'null'})`, payload);
+        if (messageQueue.length >= MAX_QUEUE_SIZE) {
+            messageQueue.shift();
+        }
         messageQueue.push(message);
     }
 }
