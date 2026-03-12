@@ -14,7 +14,7 @@ export class OpenAIClient {
         let fullResponse = '';
 
         const stream = await this.client.chat.completions.create({
-            model: 'gpt-4.1-mini',
+            model: env.OPENAI_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
@@ -36,7 +36,7 @@ export class OpenAIClient {
                     completion_tokens: chunk.usage.completion_tokens ?? 0,
                     cached_tokens: (chunk.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
                     total_tokens: chunk.usage.total_tokens ?? 0,
-                    model: 'gpt-4.1-mini',
+                    model: env.OPENAI_MODEL,
                 };
             }
         }
@@ -50,7 +50,7 @@ export class OpenAIClient {
 
     async analyzePostCall(systemPrompt: string, userPrompt: string, callId?: string): Promise<string> {
         const response = await this.client.chat.completions.create({
-            model: 'gpt-4.1-mini',
+            model: env.OPENAI_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
@@ -66,7 +66,7 @@ export class OpenAIClient {
                 completion_tokens: response.usage.completion_tokens,
                 cached_tokens: (response.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
                 total_tokens: response.usage.total_tokens,
-                model: 'gpt-4.1-mini',
+                model: env.OPENAI_MODEL,
             };
             UsageTracker.logOpenAI({ callId }, 'analyzePostCall', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
         }
@@ -81,7 +81,7 @@ export class OpenAIClient {
         callId?: string
     ): AsyncGenerator<string> {
         const stream = await this.client.chat.completions.create({
-            model: 'gpt-4.1-mini',
+            model: env.OPENAI_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
@@ -103,7 +103,7 @@ export class OpenAIClient {
                     completion_tokens: chunk.usage.completion_tokens ?? 0,
                     cached_tokens: (chunk.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
                     total_tokens: chunk.usage.total_tokens ?? 0,
-                    model: 'gpt-4.1-mini',
+                    model: env.OPENAI_MODEL,
                 };
             }
         }
@@ -115,7 +115,7 @@ export class OpenAIClient {
 
     async completeText(systemPrompt: string, userPrompt: string, callId?: string): Promise<string> {
         const response = await this.client.chat.completions.create({
-            model: 'gpt-4.1-mini',
+            model: env.OPENAI_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
@@ -130,7 +130,7 @@ export class OpenAIClient {
                 completion_tokens: response.usage.completion_tokens,
                 cached_tokens: (response.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
                 total_tokens: response.usage.total_tokens,
-                model: 'gpt-4.1-mini',
+                model: env.OPENAI_MODEL,
             };
             UsageTracker.logOpenAI({ callId }, 'completeText', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
         }
@@ -141,7 +141,7 @@ export class OpenAIClient {
     async completeJson<T>(systemPrompt: string, userPrompt: string, callId?: string): Promise<T | null> {
         try {
             const response = await this.client.chat.completions.create({
-                model: 'gpt-4.1-mini',
+                model: env.OPENAI_MODEL,
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
@@ -157,7 +157,7 @@ export class OpenAIClient {
                     completion_tokens: response.usage.completion_tokens,
                     cached_tokens: (response.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
                     total_tokens: response.usage.total_tokens,
-                    model: 'gpt-4.1-mini',
+                    model: env.OPENAI_MODEL,
                 };
                 UsageTracker.logOpenAI({ callId }, 'completeJson', usage).catch(err => logger.warn({ err }, 'Failed to log usage'));
             }

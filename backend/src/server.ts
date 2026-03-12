@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import websocket from '@fastify/websocket';
 import { env, config } from './shared/config/env.js';
@@ -41,6 +42,10 @@ server.register(cors, {
     methods: ['GET', 'HEAD', 'PUT', 'DELETE', 'POST', 'PATCH', 'OPTIONS'],
 });
 
+server.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+});
 server.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
 server.register(websocket);
 
@@ -70,15 +75,22 @@ server.setErrorHandler((error, request, reply) => {
 // Start Server
 const start = async () => {
     if (config.isProd) {
-        const missing: string[] = [];
-        if (!env.SUPABASE_URL) missing.push('SUPABASE_URL');
-        if (!env.SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY');
-        if (!env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
-        if (!env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
-        if (!env.STRIPE_SECRET_KEY) missing.push('STRIPE_SECRET_KEY');
-        if (!env.STRIPE_WEBHOOK_SECRET) missing.push('STRIPE_WEBHOOK_SECRET');
-        if (missing.length > 0) {
-            logger.warn({ missing }, '⚠️ Cloud Run: set these env vars in the service for full functionality');
+        // Critical: server cannot function without these
+        const critical: string[] = [];
+        if (!env.SUPABASE_URL) critical.push('SUPABASE_URL');
+        if (!env.SUPABASE_ANON_KEY) critical.push('SUPABASE_ANON_KEY');
+        if (!env.SUPABASE_SERVICE_ROLE_KEY) critical.push('SUPABASE_SERVICE_ROLE_KEY');
+        if (!env.OPENAI_API_KEY) critical.push('OPENAI_API_KEY');
+        if (critical.length > 0) {
+            logger.error({ missing: critical }, '🔴 FATAL: Required env vars missing. Server cannot start.');
+            process.exit(1);
+        }
+        // Optional: billing features degraded without these
+        const optional: string[] = [];
+        if (!env.STRIPE_SECRET_KEY) optional.push('STRIPE_SECRET_KEY');
+        if (!env.STRIPE_WEBHOOK_SECRET) optional.push('STRIPE_WEBHOOK_SECRET');
+        if (optional.length > 0) {
+            logger.warn({ missing: optional }, '⚠️ Optional env vars missing: billing features will be unavailable');
         }
     }
     try {

@@ -242,43 +242,95 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     fastify.get('/ws/call', { websocket: true }, async (socket, req) => {
         logger.info('🔌 New WebSocket connection attempt');
 
-        const token = (req.query as any).token;
-        if (!token) {
-            socket.close(1008, 'Token required');
-            return;
-        }
+        // Support both query-param token (legacy) and auth-challenge (new)
+        const queryToken = (req.query as any).token;
 
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-        if (error || !user) {
-            socket.close(1008, 'Invalid token');
-            return;
-        }
+        let user: { id: string } | null = null;
+        let orgId: string | null = null;
+        let authenticated = false;
 
-        const { data: profileRow } = await supabaseAdmin
-            .from('profiles')
-            .select('organization_id')
-            .eq('id', user.id)
-            .single();
-        const orgId = (profileRow as { organization_id: string | null } | null)?.organization_id;
-        if (orgId) {
-            const { data: orgRow } = await supabaseAdmin
-                .from('organizations')
-                .select('plan')
-                .eq('id', orgId)
+        async function authenticateWithToken(token: string): Promise<boolean> {
+            const { data: { user: authUser }, error } = await supabaseAdmin.auth.getUser(token);
+            if (error || !authUser) {
+                return false;
+            }
+            user = authUser;
+
+            const { data: profileRow } = await supabaseAdmin
+                .from('profiles')
+                .select('organization_id')
+                .eq('id', authUser.id)
                 .single();
-            const plan = (orgRow as { plan?: string } | null)?.plan ?? 'FREE';
-            if (plan === 'FREE') {
-                logger.warn(`🚫 User ${user.id} rejected: FREE plan`);
+            const userOrgId = (profileRow as { organization_id: string | null } | null)?.organization_id;
+            if (userOrgId) {
+                const { data: orgRow } = await supabaseAdmin
+                    .from('organizations')
+                    .select('plan')
+                    .eq('id', userOrgId)
+                    .single();
+                const plan = (orgRow as { plan?: string } | null)?.plan ?? 'FREE';
+                if (plan === 'FREE') {
+                    logger.warn(`🚫 User ${authUser.id} rejected: FREE plan`);
+                    socket.send(JSON.stringify({ type: 'auth:error', payload: { reason: 'Active plan required' } }));
+                    socket.close(4403, 'Active plan required');
+                    return false;
+                }
+            } else {
+                logger.warn(`🚫 User ${authUser.id} rejected: no organization`);
+                socket.send(JSON.stringify({ type: 'auth:error', payload: { reason: 'Active plan required' } }));
                 socket.close(4403, 'Active plan required');
+                return false;
+            }
+            orgId = userOrgId;
+            authenticated = true;
+            logger.info(`✅ User authenticated: ${authUser.id}`);
+            socket.send(JSON.stringify({ type: 'auth:ok' }));
+            return true;
+        }
+
+        // If token provided via query param (legacy), authenticate immediately
+        if (queryToken) {
+            const ok = await authenticateWithToken(queryToken);
+            if (!ok && !user) {
+                socket.close(1008, 'Invalid token');
                 return;
             }
+            if (!ok) return;
         } else {
-            logger.warn(`🚫 User ${user.id} rejected: no organization`);
-            socket.close(4403, 'Active plan required');
-            return;
+            // Auth challenge mode: wait for first message with type "auth"
+            const authTimeout = setTimeout(() => {
+                if (!authenticated) {
+                    logger.warn('⏰ Auth timeout: no auth message received within 5s');
+                    socket.close(1008, 'Auth timeout');
+                }
+            }, 5000);
+
+            // Wait for auth message before proceeding
+            await new Promise<void>((resolve) => {
+                const authHandler = async (raw: string | Buffer) => {
+                    try {
+                        const msg = JSON.parse(raw.toString());
+                        if (msg.type === 'auth' && msg.payload?.token) {
+                            clearTimeout(authTimeout);
+                            socket.off('message', authHandler);
+                            const ok = await authenticateWithToken(msg.payload.token);
+                            if (!ok && !user) {
+                                socket.close(1008, 'Invalid token');
+                            }
+                            resolve();
+                        }
+                    } catch {
+                        // Ignore non-JSON or non-auth messages during auth phase
+                    }
+                };
+                socket.on('message', authHandler);
+            });
+
+            if (!authenticated) return;
         }
 
-        logger.info(`✅ User authenticated: ${user.id}`);
+        // At this point user is guaranteed non-null (auth succeeded)
+        const authenticatedUser = user!;
         let callId: string | null = null;
         let sessionData: CallSession | null = null;
         let bufferedLeadName: string | null = null; // Buffer leadName if it arrives before session
@@ -295,7 +347,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         // HEARTBEAT
         const pingInterval = setInterval(() => {
             if (!isAlive) {
-                logger.warn(`💓 Client inactive, terminating connection for user ${user.id}`);
+                logger.warn(`💓 Client inactive, terminating connection for user ${authenticatedUser.id}`);
                 socket.terminate();
                 return;
             }
@@ -337,7 +389,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 switch (event.type) {
                     case 'call:start':
                         logger.info({ payload: event.payload }, '🚀 Processing call:start payload');
-                        await handleCallStart(event, user.id, socket);
+                        await handleCallStart(event, authenticatedUser.id, socket);
                         break;
                     case 'audio:chunk':
                         // Legacy handler - kept for compatibility
@@ -354,7 +406,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         await handleCallParticipants(event, callId, sessionData);
                         break;
                     case 'call:end':
-                        await handleCallEnd(callId, user.id, socket, event.payload);
+                        await handleCallEnd(callId, authenticatedUser.id, socket, event.payload);
                         break;
                     case 'media:stream': {
                         // [LIVE_DEBUG] Log every N chunks to avoid spam; always log header
@@ -440,11 +492,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             let finalCallId = callId;
             let finalSession = sessionData;
             if (!finalCallId) {
-                const fromRedis = await redis.get<string>(`user:${user.id}:current_call`);
+                const fromRedis = await redis.get<string>(`user:${authenticatedUser.id}:current_call`);
                 if (fromRedis) {
                     finalCallId = fromRedis;
                     finalSession = await redis.get<CallSession>(`call:${finalCallId}:session`) ?? null;
-                    logger.info(`🔗 Recovered callId from Redis for user ${user.id}: ${finalCallId}`);
+                    logger.info(`🔗 Recovered callId from Redis for user ${authenticatedUser.id}: ${finalCallId}`);
                 }
             }
             if (finalCallId && finalSession) {
@@ -469,7 +521,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                         }).eq('id', finalCallId);
                         logger.info(`🔒 Auto-finalized call ${finalCallId} on disconnect (${durationSeconds}s)`);
                         await redis.del(`call:${finalCallId}:session`);
-                        await redis.del(`user:${user.id}:current_call`);
+                        await redis.del(`user:${authenticatedUser.id}:current_call`);
                     }
                 } catch (e: any) {
                     logger.error({ message: e?.message }, '❌ Failed to auto-finalize call on disconnect');
@@ -1502,11 +1554,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     fastify.get('/ws/manager', { websocket: true }, async (socket, req) => {
         logger.info('👔 Manager WebSocket connection attempt');
 
-        const token = (req.query as any).token;
-        if (!token) {
-            socket.close(1008, 'Token required');
-            return;
-        }
+        // Support both query-param token (legacy) and auth-challenge (new)
+        const queryToken = (req.query as any).token;
 
         let subscribedCallId: string | null = null;
         let streamHandler: ((message: any) => void) | null = null;
@@ -1516,12 +1565,10 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         let authUser: { id: string } | null = null;
         let managerOrgId: string | null = null;
         let managerPlan: string = 'FREE';
-        const authPromise = (async () => {
+
+        async function authenticateManager(token: string): Promise<boolean> {
             const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (error || !user) {
-                try { socket.close(1008, 'Invalid token'); } catch { /* already closed */ }
-                return;
-            }
+            if (error || !user) return false;
             const { data: mgrProfile } = await supabaseAdmin
                 .from('profiles')
                 .select('organization_id')
@@ -1540,19 +1587,51 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 if (mgrPlan === 'FREE') {
                     logger.warn(`🚫 Manager ${user.id} rejected: FREE plan`);
                     try { socket.close(4403, 'Active plan required'); } catch { /* already closed */ }
-                    return;
+                    return false;
                 }
             } else {
                 logger.warn(`🚫 Manager ${user.id} rejected: no organization`);
                 try { socket.close(4403, 'Active plan required'); } catch { /* already closed */ }
-                return;
+                return false;
             }
             authUser = user;
             logger.info(`✅ Manager authenticated: ${user.id} (plan=${managerPlan})`);
-        })();
+            socket.send(JSON.stringify({ type: 'auth:ok' }));
+            return true;
+        }
+
+        // Legacy: query param token
+        if (queryToken) {
+            const ok = await authenticateManager(queryToken);
+            if (!ok) return;
+        } else {
+            // Auth challenge: wait for auth message
+            const authTimeout = setTimeout(() => {
+                if (!authUser) {
+                    logger.warn('⏰ Manager auth timeout');
+                    socket.close(1008, 'Auth timeout');
+                }
+            }, 5000);
+
+            await new Promise<void>((resolve) => {
+                const handler = async (raw: string | Buffer) => {
+                    try {
+                        const msg = JSON.parse(raw.toString());
+                        if (msg.type === 'auth' && msg.payload?.token) {
+                            clearTimeout(authTimeout);
+                            socket.off('message', handler);
+                            await authenticateManager(msg.payload.token);
+                            resolve();
+                        }
+                    } catch { /* ignore */ }
+                };
+                socket.on('message', handler);
+            });
+
+            if (!authUser) return;
+        }
 
         socket.on('message', async (message: string | Buffer) => {
-            await authPromise;
             if (!authUser) return;
             try {
                 const event = JSON.parse(message.toString());

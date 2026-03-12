@@ -31,6 +31,7 @@ let cachedObjections: CachedObjection[] = [];
 
 let isCallConfirmed = false;
 let lastLiveKitCallId: string | null = null;
+const MAX_AUDIO_SEGMENTS = 200;
 let audioSegmentBuffer: any[] = [];
 let callStartRetryIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -453,6 +454,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 send('audio:segment', segmentPayload);
             } else {
                 console.log('⏳ Buffering audio segment (call not confirmed yet)...');
+                if (audioSegmentBuffer.length >= MAX_AUDIO_SEGMENTS) {
+                    audioSegmentBuffer.shift();
+                }
                 audioSegmentBuffer.push(segmentPayload);
             }
 

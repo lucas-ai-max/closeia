@@ -24,9 +24,9 @@ try {
             autoRefreshToken: true,
             detectSessionInUrl: false,
             storage: {
-                getItem: (key: string) => new Promise((resolve) => chrome.storage.local.get([key], (result) => resolve((result[key] as string) || null))),
-                setItem: (key: string, value: string) => new Promise((resolve) => chrome.storage.local.set({ [key]: value }, resolve)),
-                removeItem: (key: string) => new Promise((resolve) => chrome.storage.local.remove([key], resolve)),
+                getItem: (key: string) => new Promise((resolve) => chrome.storage.session.get([key], (result) => resolve((result[key] as string) || null))),
+                setItem: (key: string, value: string) => new Promise((resolve) => chrome.storage.session.set({ [key]: value }, resolve)),
+                removeItem: (key: string) => new Promise((resolve) => chrome.storage.session.remove([key], resolve)),
             }
         }
     });
@@ -45,7 +45,7 @@ supabase.auth.onAuthStateChange((event: string, session: any) => {
     if (_isSavingSession) return;
     if (session && event === 'TOKEN_REFRESHED') {
         const authKey = getSupabaseAuthStorageKey();
-        chrome.storage.local.set({
+        chrome.storage.session.set({
             supabase_session: session,
             access_token: session.access_token,
             refresh_token: session.refresh_token,
@@ -78,14 +78,14 @@ export const authService = {
         };
         _isSavingSession = true;
         try {
-            await chrome.storage.local.set(payload);
+            await chrome.storage.session.set(payload);
         } finally {
             _isSavingSession = false;
         }
     },
 
     async getSession(): Promise<any> {
-        const data = await chrome.storage.local.get(['supabase_session']);
+        const data = await chrome.storage.session.get(['supabase_session']);
         return data.supabase_session;
     },
 
@@ -107,7 +107,7 @@ export const authService = {
     async logout() {
         const authKey = getSupabaseAuthStorageKey();
         await supabase.auth.signOut();
-        await chrome.storage.local.remove(['supabase_session', 'access_token', 'refresh_token', authKey]);
+        await chrome.storage.session.remove(['supabase_session', 'access_token', 'refresh_token', authKey]);
     },
 
     async fetchOrganizationPlan(): Promise<{ plan: string; organizationId: string } | null> {

@@ -53,7 +53,8 @@
         "logo.svg"
       ],
       "matches": [
-        "<all_urls>"
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*"
       ]
     }
   ]

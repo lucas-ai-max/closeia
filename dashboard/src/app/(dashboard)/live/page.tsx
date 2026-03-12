@@ -172,20 +172,32 @@ export default function LivePage() {
             setToken(session.access_token);
             if (session.user?.id) setManagerUserId(session.user.id);
 
-            socket = new WebSocket(`${WS_URL}?token=${session.access_token}`);
+            socket = new WebSocket(WS_URL);
 
             socket.onopen = () => {
-                socket!.send(JSON.stringify({
-                    type: 'manager:join',
-                    payload: { callId: selectedCall!.id }
-                }));
+                // Auth challenge: send token as first message
+                socket!.send(JSON.stringify({ type: 'auth', payload: { token: session.access_token } }));
             };
+
+            // Track auth state
+            let wsAuthenticated = false;
 
             socket.onmessage = (event) => {
                 if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
                     return;
                 }
                 const msg = JSON.parse(event.data as string);
+
+                // Handle auth challenge response
+                if (msg.type === 'auth:ok' && !wsAuthenticated) {
+                    wsAuthenticated = true;
+                    socket!.send(JSON.stringify({
+                        type: 'manager:join',
+                        payload: { callId: selectedCall!.id }
+                    }));
+                    return;
+                }
+
                 if (msg.type === 'transcript:stream') {
                     setTranscripts(prev => [...prev, msg.payload]);
                 }

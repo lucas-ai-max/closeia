@@ -1,8 +1,14 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.js';
+import { planGuard } from '../middlewares/plan-guard.js';
 import { supabaseAdmin } from '../../../infrastructure/supabase/client.js';
 import { adminRoutes } from './admin.js';
 import { coachRoutes } from './coaches.js';
+
+const OutcomeSchema = z.object({
+    outcome: z.enum(['CONVERTED', 'LOST', 'FOLLOW_UP']),
+});
 
 export async function routes(fastify: FastifyInstance) {
 
@@ -39,7 +45,7 @@ export async function routes(fastify: FastifyInstance) {
         });
 
         // POST /api/calls/:id/reprocess-summary — reprocessa análise da chamada (para chamadas COMPLETED sem resumo)
-        protectedRoutes.post('/calls/:id/reprocess-summary', async (request: any, reply) => {
+        protectedRoutes.post('/calls/:id/reprocess-summary', { preHandler: planGuard('reprocess_analysis') }, async (request: any, reply) => {
             const { id: callId } = request.params as { id: string };
             const { organization_id } = request.user;
 
@@ -65,7 +71,11 @@ export async function routes(fastify: FastifyInstance) {
         // POST /api/calls/:id/outcome
         protectedRoutes.post('/calls/:id/outcome', async (request: any, reply) => {
             const { id } = request.params as { id: string };
-            const { outcome } = request.body as { outcome: 'CONVERTED' | 'LOST' | 'FOLLOW_UP' };
+            const parsed = OutcomeSchema.safeParse(request.body);
+            if (!parsed.success) {
+                return reply.code(400).send({ error: 'Dados inválidos', details: parsed.error.flatten() });
+            }
+            const { outcome } = parsed.data;
             const { organization_id } = request.user;
 
             // 1. Update Call Summary
@@ -139,21 +149,27 @@ export async function routes(fastify: FastifyInstance) {
 
             if (error) throw error;
 
-            // Enrich with success rates
-            const enriched = await Promise.all(objections!.map(async (obj: any) => {
-                const { data: metrics } = await supabaseAdmin
+            // Enrich with success rates (batch query instead of N+1)
+            const objectionIds = (objections ?? []).map((obj: any) => obj.id);
+            const { data: allMetrics } = objectionIds.length > 0
+                ? await supabaseAdmin
                     .from('objection_success_metrics')
-                    .select('success_count, total_usage')
-                    .eq('objection_id', obj.id)
+                    .select('objection_id, success_count, total_usage')
+                    .in('objection_id', objectionIds)
                     .eq('script_id', scriptId)
-                    .maybeSingle();
+                : { data: [] };
 
+            const metricsMap = new Map(
+                (allMetrics ?? []).map((m: any) => [m.objection_id, m])
+            );
+
+            const enriched = (objections ?? []).map((obj: any) => {
+                const metrics = metricsMap.get(obj.id);
                 const success_rate = metrics && metrics.total_usage > 0
                     ? metrics.success_count / metrics.total_usage
                     : 0;
-
                 return { ...obj, success_rate };
-            }));
+            });
 
             return enriched;
         });

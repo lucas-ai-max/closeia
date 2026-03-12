@@ -21,6 +21,7 @@ const envSchema = z.object({
 
     // OpenAI
     OPENAI_API_KEY: z.string().default(''),
+    OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
 
     // Deepgram
     DEEPGRAM_API_KEY: z.string().default(''),

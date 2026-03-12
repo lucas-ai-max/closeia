@@ -1,7 +1,30 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { supabaseAdmin } from '../../../infrastructure/supabase/client.js';
 import { logger } from '../../../shared/utils/logger.js';
 import { openaiClient } from '../../../infrastructure/ai/openai-client.js';
+
+const CreateCoachSchema = z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().max(500).optional().nullable(),
+    persona: z.string().max(5000).optional().nullable(),
+    methodology: z.string().max(100).optional().nullable(),
+    tone: z.enum(['AGGRESSIVE', 'CONSULTIVE', 'EMPATHETIC']).default('CONSULTIVE'),
+    intervention_level: z.enum(['HIGH', 'MEDIUM', 'LOW']).default('MEDIUM'),
+    product_name: z.string().max(200).optional().nullable(),
+    product_description: z.string().max(5000).optional().nullable(),
+    product_differentials: z.string().max(5000).optional().nullable(),
+    product_pricing_info: z.string().max(2000).optional().nullable(),
+    product_target_audience: z.string().max(2000).optional().nullable(),
+    script_name: z.string().max(200).optional().nullable(),
+    script_steps: z.array(z.any()).optional().default([]),
+    script_objections: z.array(z.any()).optional().default([]),
+    script_content: z.string().max(50000).optional().nullable(),
+    is_active: z.boolean().default(true),
+    is_default: z.boolean().default(false),
+});
+
+const UpdateCoachSchema = CreateCoachSchema.partial();
 
 export async function coachRoutes(fastify: FastifyInstance) {
 
@@ -178,7 +201,11 @@ ${rawText}`;
             return reply.code(403).send({ error: 'Apenas gestores podem criar coaches' });
         }
 
-        const body = request.body as any;
+        const parsed = CreateCoachSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: 'Dados inválidos', details: parsed.error.flatten() });
+        }
+        const body = parsed.data;
 
         // If setting as default, unset other defaults first
         if (body.is_default) {
@@ -231,7 +258,11 @@ ${rawText}`;
             return reply.code(403).send({ error: 'Apenas gestores podem editar coaches' });
         }
 
-        const body = request.body as any;
+        const parsed = UpdateCoachSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: 'Dados inválidos', details: parsed.error.flatten() });
+        }
+        const body = parsed.data;
 
         // If setting as default, unset other defaults first
         if (body.is_default) {
@@ -252,9 +283,10 @@ ${rawText}`;
             'is_active', 'is_default',
         ];
 
+        const bodyRecord = body as Record<string, unknown>;
         for (const field of allowedFields) {
-            if (body[field] !== undefined) {
-                updatePayload[field] = body[field];
+            if (bodyRecord[field] !== undefined) {
+                updatePayload[field] = bodyRecord[field];
             }
         }
 

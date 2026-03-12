@@ -43,33 +43,53 @@ export async function connect() {
         // ★★★ OBTAIN FRESH TOKEN BEFORE EACH CONNECTION ★★★
         console.log('🔄 Getting fresh token for WS connection...');
         const token = await authService.getFreshToken();
-        const wsUrl = `${WS_BASE_URL}?token=${token}`;
+        // Auth challenge: connect without token in URL, send via first message
         console.log('🔌 Connecting WS:', WS_BASE_URL);
-        ws = new WebSocket(wsUrl);
+        ws = new WebSocket(WS_BASE_URL);
 
         ws.onopen = () => {
-            console.log('✅ WS Connected');
-            reconnectAttempts = 0; // Reset counter on success
-
-            // Flush queue
-            console.log(`🚀 Flushing ${messageQueue.length} messages from queue...`);
-            while (messageQueue.length > 0) {
-                const msg = messageQueue.shift()!;
-                try {
-                    ws!.send(msg);
-                    console.log('📤 Flushed message:', JSON.parse(msg).type);
-                } catch (e) {
-                    console.error('❌ Failed to flush message:', e);
-                }
-            }
-
-            // Notify background
-            if (onConnectCallback) onConnectCallback();
+            console.log('🔐 WS Connected, sending auth challenge...');
+            // Send auth token as first message (not in URL for security)
+            ws!.send(JSON.stringify({ type: 'auth', payload: { token } }));
         };
+
+        // Wait for auth:ok before flushing queue
+        let authResolved = false;
 
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+
+                // Handle auth challenge response
+                if (data.type === 'auth:ok' && !authResolved) {
+                    authResolved = true;
+                    console.log('✅ WS Authenticated');
+                    reconnectAttempts = 0;
+
+                    // Flush queue after auth
+                    console.log(`🚀 Flushing ${messageQueue.length} messages from queue...`);
+                    while (messageQueue.length > 0) {
+                        const msg = messageQueue.shift()!;
+                        try {
+                            ws!.send(msg);
+                            console.log('📤 Flushed message:', JSON.parse(msg).type);
+                        } catch (e) {
+                            console.error('❌ Failed to flush message:', e);
+                        }
+                    }
+
+                    if (onConnectCallback) onConnectCallback();
+                    return;
+                }
+
+                if (data.type === 'auth:error') {
+                    console.error('❌ WS Auth failed:', data.payload?.reason);
+                    if (data.payload?.reason === 'Active plan required' && onPlanRequiredCallback) {
+                        onPlanRequiredCallback();
+                    }
+                    return;
+                }
+
                 console.log('📩 WS Message:', data.type);
                 if (onMessageCallback) onMessageCallback(data);
             } catch (err) {

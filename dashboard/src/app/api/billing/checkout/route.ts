@@ -119,34 +119,17 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         }];
 
-    const sessionResult = await createCheckoutSession({
-      mode: mode as CheckoutMode,
-      customerEmail,
-      lineItems,
-      successUrl: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${origin}/billing/cancel`,
-      clientReferenceId: organizationId,
-      metadata: {
-        organization_id: organizationId,
-        user_id: user.id,
-        order_code: orderCode,
-        plan_id: planId ?? '',
-        plan_slug: planSlug ?? '',
-      },
-      trialPeriodDays: trialDays,
-    });
-
+    // Create order FIRST (draft status) to ensure DB consistency before Stripe charges
     const { data: orderRow, error: insertError } = await supabase
       .from('billing_orders')
       .insert({
         organization_id: organizationId,
         user_id: user.id,
         plan_id: planId ?? null,
-        status: 'pending',
+        status: 'draft',
         amount_cents: amountCents ?? 0,
         currency,
         order_code: orderCode,
-        stripe_session_id: sessionResult.sessionId,
         metadata: {},
       })
       .select('id')
@@ -159,6 +142,43 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Create Stripe session AFTER order exists in DB
+    let sessionResult;
+    try {
+      sessionResult = await createCheckoutSession({
+        mode: mode as CheckoutMode,
+        customerEmail,
+        lineItems,
+        successUrl: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${origin}/billing/cancel`,
+        clientReferenceId: organizationId,
+        metadata: {
+          organization_id: organizationId,
+          user_id: user.id,
+          order_code: orderCode,
+          plan_id: planId ?? '',
+          plan_slug: planSlug ?? '',
+        },
+        trialPeriodDays: trialDays,
+      });
+    } catch (stripeErr) {
+      // Stripe failed — mark order as failed
+      await supabase
+        .from('billing_orders')
+        .update({ status: 'failed' })
+        .eq('id', orderRow.id);
+      throw stripeErr;
+    }
+
+    // Update order with Stripe session ID and set status to pending
+    await supabase
+      .from('billing_orders')
+      .update({
+        stripe_session_id: sessionResult.sessionId,
+        status: 'pending',
+      })
+      .eq('id', orderRow.id);
 
     return NextResponse.json({
       checkoutUrl: sessionResult.checkoutUrl,

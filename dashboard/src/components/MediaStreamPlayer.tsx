@@ -279,16 +279,14 @@ export function MediaStreamPlayer({ callId, wsUrl, token }: MediaStreamPlayerPro
                     }
                 }, LIVE_EDGE_SEEK_INTERVAL_MS);
 
-                const ws = new WebSocket(`${wsUrl}?token=${token}`);
+                const ws = new WebSocket(wsUrl);
                 ws.binaryType = 'arraybuffer';
                 wsRef.current = ws;
 
+                let wsAuthenticated = false;
                 ws.onopen = () => {
-                    console.log('[LIVE_DEBUG] MediaStreamPlayer WS open, sending manager:join callId=', callId);
-                    ws.send(JSON.stringify({
-                        type: 'manager:join',
-                        payload: { callId }
-                    }));
+                    console.log('[LIVE_DEBUG] MediaStreamPlayer WS open, sending auth challenge');
+                    ws.send(JSON.stringify({ type: 'auth', payload: { token } }));
                 };
 
                 ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
@@ -320,6 +318,15 @@ export function MediaStreamPlayer({ callId, wsUrl, token }: MediaStreamPlayerPro
 
                     try {
                         const message = JSON.parse(data as string);
+                        if (message.type === 'auth:ok' && !wsAuthenticated) {
+                            wsAuthenticated = true;
+                            console.log('[LIVE_DEBUG] MediaStreamPlayer WS authenticated, sending manager:join callId=', callId);
+                            ws.send(JSON.stringify({
+                                type: 'manager:join',
+                                payload: { callId }
+                            }));
+                            return;
+                        }
                         if (message.type === 'manager:joined') {
                             console.log('[LIVE_DEBUG] MediaStreamPlayer manager:joined callId=', message.payload?.callId);
                             return;
