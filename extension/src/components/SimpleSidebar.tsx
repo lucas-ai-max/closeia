@@ -252,16 +252,26 @@ export default function SimpleSidebar() {
         setIsRecording(false);
     };
 
-    // Re-check plan when storage changes (e.g. login from popup or plan updated)
+    // Re-check session when storage changes (e.g. login from popup, or background sets access level)
     useEffect(() => {
-        const storageListener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-            if (changes.supabase_session) {
+        const storageListener = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+            if (areaName === 'session' && changes.supabase_session) {
                 checkSession();
             }
         };
-        chrome.storage.local.onChanged.addListener(storageListener);
-        return () => chrome.storage.local.onChanged.removeListener(storageListener);
-    }, []);
+        chrome.storage.onChanged.addListener(storageListener);
+
+        // Retry if no session found (background may not have set access level yet)
+        if (!session && !loading) {
+            const retryTimer = setTimeout(() => checkSession(), 2000);
+            return () => {
+                clearTimeout(retryTimer);
+                chrome.storage.onChanged.removeListener(storageListener);
+            };
+        }
+
+        return () => chrome.storage.onChanged.removeListener(storageListener);
+    }, [session, loading]);
 
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
