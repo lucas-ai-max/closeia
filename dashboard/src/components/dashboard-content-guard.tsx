@@ -111,15 +111,7 @@ export function DashboardContentGuard({ children }: DashboardContentGuardProps) 
     loadProfile()
   }, [loadProfile])
 
-  // Show loading while mounting, loading data, or plan not yet determined
-  if (!mounted || loading || organizationId === undefined || organizationPlan === null) {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh]" suppressHydrationWarning={true}>
-        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-      </div>
-    )
-  }
-
+  // Deactivated users — check BEFORE loading spinner to avoid infinite spinner
   if (isDeactivated) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center px-4">
@@ -130,6 +122,15 @@ export function DashboardContentGuard({ children }: DashboardContentGuardProps) 
         <p className="text-gray-400 max-w-md">
           Sua conta foi desativada pelo administrador da sua equipe. Entre em contato com o gestor para mais informações.
         </p>
+      </div>
+    )
+  }
+
+  // Show loading while mounting, loading data, or plan not yet determined
+  if (!mounted || loading || organizationId === undefined || organizationPlan === null) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]" suppressHydrationWarning={true}>
+        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
       </div>
     )
   }

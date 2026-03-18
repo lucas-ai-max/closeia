@@ -218,4 +218,63 @@ export async function adminRoutes(fastify: FastifyInstance) {
             return reply.code(500).send({ error: error?.message || 'Falha ao alterar senha.' });
         }
     });
+
+    /** Delete a seller completely (profile + auth user). Only MANAGER of same org can use. */
+    fastify.post('/delete-user', async (request: any, reply) => {
+        const schema = z.object({ user_id: z.string().uuid('ID do usuário inválido') });
+        const parsed = schema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0].message });
+        }
+        const { user_id: targetUserId } = parsed.data;
+        const { organization_id, role, id: managerId } = request.user;
+
+        if (role !== 'MANAGER') {
+            return reply.code(403).send({ error: 'Apenas o gestor pode excluir vendedores.' });
+        }
+        if (!organization_id) {
+            return reply.code(400).send({ error: 'Missing organization.' });
+        }
+        if (targetUserId === managerId) {
+            return reply.code(400).send({ error: 'Você não pode excluir a si mesmo.' });
+        }
+
+        try {
+            // Verify target belongs to same org
+            const { data: targetProfile, error: profileError } = await supabaseAdmin
+                .from('profiles')
+                .select('id, organization_id, role')
+                .eq('id', targetUserId)
+                .single();
+
+            if (profileError || !targetProfile) {
+                return reply.code(404).send({ error: 'Usuário não encontrado.' });
+            }
+            if ((targetProfile as any).organization_id !== organization_id) {
+                return reply.code(403).send({ error: 'Você só pode excluir membros da sua organização.' });
+            }
+
+            // 1. Delete profile row
+            const { error: deleteProfileError } = await supabaseAdmin
+                .from('profiles')
+                .delete()
+                .eq('id', targetUserId);
+            if (deleteProfileError) {
+                logger.error({ err: deleteProfileError }, 'Admin: Failed to delete profile');
+            }
+
+            // 2. Delete auth user completely
+            const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+            if (deleteAuthError) {
+                logger.error({ err: deleteAuthError }, 'Admin: Failed to delete auth user');
+                return reply.code(500).send({ error: 'Falha ao excluir usuário: ' + deleteAuthError.message });
+            }
+
+            logger.info({ targetUserId, organization_id }, 'Admin: User fully deleted');
+            return { success: true, message: 'Vendedor excluído com sucesso.' };
+        } catch (error: any) {
+            logger.error({ err: error }, 'Admin: delete-user error');
+            return reply.code(500).send({ error: error?.message || 'Falha ao excluir usuário.' });
+        }
+    });
 }

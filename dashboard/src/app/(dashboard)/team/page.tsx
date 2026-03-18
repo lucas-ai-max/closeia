@@ -172,17 +172,11 @@ export default function TeamPage() {
 
     setActionLoading(memberId)
     try {
-      // Deactivate account: disconnect from org + mark inactive so they can't log back in
-      const { error } = await supabase
-        .from('profiles')
-        // @ts-expect-error - Supabase inferred Update type for 'profiles' can be never in some versions
-        .update({ organization_id: null, role: 'SELLER', is_active: false })
-        .eq('id', memberId)
-
-      if (error) throw error
+      // Fully delete user (profile + auth) via backend admin API
+      await api.post('/api/admin/delete-user', { user_id: memberId })
 
       setMembers(prev => prev.filter(m => m.id !== memberId))
-      setFeedback({ type: 'success', message: `${member?.full_name || 'Membro'} removido e conta desativada.` })
+      setFeedback({ type: 'success', message: `${member?.full_name || 'Membro'} excluído com sucesso.` })
     } catch (err: any) {
       console.error('removeMember error:', err)
       setFeedback({ type: 'error', message: `Erro ao remover: ${err.message}` })
