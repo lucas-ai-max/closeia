@@ -7,7 +7,9 @@ const DEEPGRAM_WS_URL = 'wss://api.deepgram.com/v1/listen';
 const DEEPGRAM_QUERY_PARAMS: Record<string, string> = {
     model: 'nova-2',
     language: 'pt-BR',
-    encoding: 'opus',
+    // encoding omitted — Deepgram auto-detects from WebM container
+    // This handles both mono (extension) and stereo (web session) correctly
+    multichannel: 'false',
     punctuate: 'true',
     smart_format: 'true',
     interim_results: 'true',
