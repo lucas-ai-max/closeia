@@ -112,6 +112,13 @@ export default function BillingPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [extraHours, setExtraHours] = useState(5)
   const [extraHoursLoading, setExtraHoursLoading] = useState(false)
+  const [usageData, setUsageData] = useState<{
+    planHours: number
+    extraHoursPurchased: number
+    usedHours: number
+    remainingHours: number
+    purchases: Array<{ id: string; hours: number; amount_cents: number; status: string; paid_at: string | null }>
+  } | null>(null)
   const supabase = createClient()
 
   const loadBillingData = useCallback(async () => {
@@ -135,6 +142,21 @@ export default function BillingPage() {
         setCurrentPlan(orgRow.plan ?? 'FREE')
         setHasStripeCustomer(!!orgRow.stripe_customer_id)
       }
+
+      // Load usage data
+      try {
+        const res = await fetch('/api/billing/limits')
+        if (res.ok) {
+          const data = await res.json()
+          setUsageData({
+            planHours: data.limits?.maxCallHoursPerMonth ?? 0,
+            extraHoursPurchased: data.extraHours?.purchased ?? 0,
+            usedHours: data.usage?.currentCallHoursThisMonth ?? 0,
+            remainingHours: data.remaining?.callHours ?? 0,
+            purchases: (data.extraHours?.purchases ?? []).filter((p: { status: string }) => p.status === 'paid'),
+          })
+        }
+      } catch { /* ignore */ }
     } finally {
       setLoading(false)
     }
@@ -347,7 +369,110 @@ export default function BillingPage() {
           })}
         </div>
 
-        {/* Extra Hours Section */}
+        {/* Usage Overview */}
+        {usageData && currentPlan !== 'FREE' && (
+          <div className="rounded-2xl border p-6" style={CARD_STYLE}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${NEON_GREEN}15` }}>
+                <Clock className="w-5 h-5" style={{ color: NEON_GREEN }} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Uso de Horas do Mês</h3>
+                <p className="text-sm text-gray-500">Plano {currentPlan} · {usageData.planHours}h/mês</p>
+              </div>
+            </div>
+
+            {/* Progress bars */}
+            <div className="space-y-4">
+              {/* Plan hours */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-gray-400">Horas do Plano</span>
+                  <span className="text-sm text-white font-medium">
+                    {Math.min(usageData.usedHours, usageData.planHours).toFixed(1)}h / {usageData.planHours}h
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-black/40 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${Math.min(100, (usageData.usedHours / usageData.planHours) * 100)}%`,
+                      backgroundColor: usageData.usedHours >= usageData.planHours ? '#ef4444' : NEON_GREEN,
+                      boxShadow: `0 0 8px ${usageData.usedHours >= usageData.planHours ? '#ef4444' : NEON_GREEN}`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Extra hours (if purchased) */}
+              {usageData.extraHoursPurchased > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm text-gray-400">Horas Extras Compradas</span>
+                    <span className="text-sm text-white font-medium">
+                      {Math.max(0, usageData.usedHours - usageData.planHours).toFixed(1)}h / {usageData.extraHoursPurchased}h
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-black/40 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(100, (Math.max(0, usageData.usedHours - usageData.planHours) / usageData.extraHoursPurchased) * 100)}%`,
+                        backgroundColor: NEON_PINK,
+                        boxShadow: `0 0 8px ${NEON_PINK}`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Summary */}
+              <div className="flex items-center gap-6 pt-2 border-t border-white/5">
+                <div>
+                  <p className="text-2xl font-bold text-white">{usageData.usedHours.toFixed(1)}<span className="text-sm text-gray-500">h</span></p>
+                  <p className="text-xs text-gray-500">Usadas</p>
+                </div>
+                <div className="w-px h-10 bg-white/10" />
+                <div>
+                  <p className="text-2xl font-bold" style={{ color: NEON_GREEN }}>{usageData.remainingHours.toFixed(1)}<span className="text-sm text-gray-500">h</span></p>
+                  <p className="text-xs text-gray-500">Restantes</p>
+                </div>
+                <div className="w-px h-10 bg-white/10" />
+                <div>
+                  <p className="text-2xl font-bold text-white">{usageData.planHours + usageData.extraHoursPurchased}<span className="text-sm text-gray-500">h</span></p>
+                  <p className="text-xs text-gray-500">Total disponível</p>
+                </div>
+                {usageData.extraHoursPurchased > 0 && (
+                  <>
+                    <div className="w-px h-10 bg-white/10" />
+                    <div>
+                      <p className="text-2xl font-bold" style={{ color: NEON_PINK }}>{usageData.extraHoursPurchased}<span className="text-sm text-gray-500">h</span></p>
+                      <p className="text-xs text-gray-500">Extras compradas</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Purchase history */}
+              {usageData.purchases.length > 0 && (
+                <div className="pt-2 border-t border-white/5">
+                  <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider">Compras deste mês</p>
+                  <div className="space-y-1">
+                    {usageData.purchases.map(p => (
+                      <div key={p.id} className="flex items-center justify-between text-xs text-gray-400">
+                        <span>{p.hours}h extras</span>
+                        <span>R$ {(p.amount_cents / 100).toFixed(0)}</span>
+                        <span className="text-green-400">{p.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : 'Pago'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Extra Hours Purchase */}
         {currentPlan !== 'FREE' && currentPlan !== 'ENTERPRISE' && extraHourPrice > 0 && (
           <div className="rounded-2xl border p-6" style={CARD_STYLE}>
             <div className="flex items-center gap-3 mb-4">

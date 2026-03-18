@@ -3,6 +3,15 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getPlanLimits, type PlanSlug, type FeatureKey } from '@/lib/plan-limits';
 
+export interface ExtraHoursPurchase {
+  id: string;
+  hours: number;
+  amount_cents: number;
+  status: string;
+  paid_at: string | null;
+  created_at: string;
+}
+
 export interface OrganizationUsage {
   plan: PlanSlug;
   limits: {
@@ -17,6 +26,10 @@ export interface OrganizationUsage {
   remaining: {
     sellerSlots: number;
     callHours: number;
+  };
+  extraHours: {
+    purchased: number;
+    purchases: ExtraHoursPurchase[];
   };
   features: Record<FeatureKey, boolean>;
   canStartCall: boolean;
@@ -93,17 +106,43 @@ export async function GET() {
 
     const currentCallHours = Math.round((totalSeconds / 3600) * 100) / 100;
 
+    // Fetch extra hours purchased this month
+    const startOfMonthStr = startOfMonth.toISOString().split('T')[0]
+    let extraHoursPurchased = 0
+    let extraHoursPurchases: ExtraHoursPurchase[] = []
+    try {
+      const { data: purchases } = await supabase
+        .from('extra_hours_purchases')
+        .select('id, hours, amount_cents, status, paid_at, created_at')
+        .eq('organization_id', organizationId)
+        .eq('valid_month', startOfMonthStr)
+        .order('created_at', { ascending: false })
+
+      if (purchases) {
+        extraHoursPurchases = purchases as unknown as ExtraHoursPurchase[]
+        extraHoursPurchased = purchases
+          .filter((p: { status: string }) => p.status === 'paid')
+          .reduce((sum: number, p: { hours: number }) => sum + (p.hours ?? 0), 0)
+      }
+    } catch {
+      // Table might not exist yet
+    }
+
+    const totalAvailableHours = planLimits.maxCallHoursPerMonth === -1
+      ? -1
+      : planLimits.maxCallHoursPerMonth + extraHoursPurchased
+
     // Calculate remaining
     const remainingSellerSlots =
       planLimits.maxSellers === -1 ? Infinity : Math.max(0, planLimits.maxSellers - currentSellers);
 
     const remainingCallHours =
-      planLimits.maxCallHoursPerMonth === -1
+      totalAvailableHours === -1
         ? Infinity
-        : Math.max(0, planLimits.maxCallHoursPerMonth - currentCallHours);
+        : Math.max(0, totalAvailableHours - currentCallHours);
 
     // Check permissions
-    const canStartCall = planLimits.maxCallHoursPerMonth === -1 || currentCallHours < planLimits.maxCallHoursPerMonth;
+    const canStartCall = totalAvailableHours === -1 || currentCallHours < totalAvailableHours;
     const canAddSeller = planLimits.maxSellers === -1 || currentSellers < planLimits.maxSellers;
 
     const response: OrganizationUsage = {
@@ -119,7 +158,11 @@ export async function GET() {
       },
       remaining: {
         sellerSlots: remainingSellerSlots === Infinity ? -1 : remainingSellerSlots,
-        callHours: remainingCallHours === Infinity ? -1 : remainingCallHours,
+        callHours: remainingCallHours === Infinity ? -1 : Math.round(remainingCallHours * 100) / 100,
+      },
+      extraHours: {
+        purchased: extraHoursPurchased,
+        purchases: extraHoursPurchases,
       },
       features: planLimits.features,
       canStartCall,
