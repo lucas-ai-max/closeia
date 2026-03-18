@@ -343,7 +343,7 @@ export default function LivePage() {
                         <>
                             {/* Tela compartilhada do vendedor (vídeo ao vivo): LiveKit WebRTC ou fallback WebM/WS */}
                             <div className="w-full shrink-0 rounded-[24px] border overflow-hidden" style={CARD_STYLE}>
-                                {useLiveKit ? (
+                                {useLiveKit && selectedCall.platform !== 'web' ? (
                                     <LiveKitViewer
                                         roomName={selectedCall.id}
                                         identity={managerUserId ? `manager_${managerUserId}` : 'manager'}
