@@ -172,17 +172,17 @@ export default function TeamPage() {
 
     setActionLoading(memberId)
     try {
-      // Set organization_id to null (soft remove — keeps auth account but disconnects from org)
+      // Deactivate account: disconnect from org + mark inactive so they can't log back in
       const { error } = await supabase
         .from('profiles')
         // @ts-expect-error - Supabase inferred Update type for 'profiles' can be never in some versions
-        .update({ organization_id: null, role: 'SELLER' })
+        .update({ organization_id: null, role: 'SELLER', is_active: false })
         .eq('id', memberId)
 
       if (error) throw error
 
       setMembers(prev => prev.filter(m => m.id !== memberId))
-      setFeedback({ type: 'success', message: `${member?.full_name || 'Membro'} removido da organização.` })
+      setFeedback({ type: 'success', message: `${member?.full_name || 'Membro'} removido e conta desativada.` })
     } catch (err: any) {
       console.error('removeMember error:', err)
       setFeedback({ type: 'error', message: `Erro ao remover: ${err.message}` })

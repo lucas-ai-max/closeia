@@ -63,8 +63,10 @@ export function DashboardContentGuard({ children }: DashboardContentGuardProps) 
   const [loading, setLoading] = useState(true)
   const [organizationId, setOrganizationId] = useState<string | null | undefined>(undefined)
   const [organizationPlan, setOrganizationPlan] = useState<string | null>(null) // null = not loaded yet
+  const [isDeactivated, setIsDeactivated] = useState(false)
   const pathname = usePathname()
   const supabase = createClient()
+  const router = typeof window !== 'undefined' ? require('next/navigation').useRouter() : null
 
   const loadProfile = useCallback(async () => {
     try {
@@ -75,9 +77,18 @@ export function DashboardContentGuard({ children }: DashboardContentGuardProps) 
       }
       const { data: profile } = await supabase
         .from('profiles')
-        .select('organization_id')
+        .select('organization_id, is_active')
         .eq('id', user.id)
         .single()
+
+      // Block deactivated users
+      const isActive = (profile as any)?.is_active
+      if (isActive === false) {
+        setIsDeactivated(true)
+        await supabase.auth.signOut()
+        return
+      }
+
       const orgId = (profile as { organization_id: string | null } | null)?.organization_id ?? null
       setOrganizationId(orgId)
       if (orgId) {
@@ -105,6 +116,20 @@ export function DashboardContentGuard({ children }: DashboardContentGuardProps) 
     return (
       <div className="flex items-center justify-center min-h-[40vh]" suppressHydrationWarning={true}>
         <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
+
+  if (isDeactivated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+          <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+        </div>
+        <h2 className="text-xl font-semibold text-white mb-2">Conta desativada</h2>
+        <p className="text-gray-400 max-w-md">
+          Sua conta foi desativada pelo administrador da sua equipe. Entre em contato com o gestor para mais informações.
+        </p>
       </div>
     )
   }
