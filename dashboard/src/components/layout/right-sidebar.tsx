@@ -48,24 +48,37 @@ export function RightSidebar() {
 
   const fetchData = async () => {
     try {
+      // Get user profile for data isolation
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: prof } = await supabase.from('profiles').select('role, organization_id').eq('id', user.id).single()
+      const orgId = (prof as any)?.organization_id
+      const isSeller = (prof as any)?.role === 'SELLER'
+
+      const addScope = (query: any) => {
+        if (isSeller) return query.eq('user_id', user.id)
+        if (orgId) return query.eq('organization_id', orgId)
+        return query
+      }
+
       const now = new Date()
       const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-      const { count: monthCount } = await supabase
+      const { count: monthCount } = await addScope(supabase
         .from('calls')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'COMPLETED')
-        .gte('started_at', firstOfMonth)
+        .gte('started_at', firstOfMonth))
       setTotalCalls(monthCount ?? 0)
 
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
-      const { count: todayCount } = await supabase
+      const { count: todayCount } = await addScope(supabase
         .from('calls')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'COMPLETED')
-        .gte('started_at', startOfDay)
+        .gte('started_at', startOfDay))
       setTodayCompleted(todayCount ?? 0)
 
-      const { data: recent } = await supabase
+      const { data: recent } = await addScope(supabase
         .from('calls')
         .select(`
           id,
@@ -75,7 +88,7 @@ export function RightSidebar() {
         `)
         .eq('status', 'COMPLETED')
         .order('ended_at', { ascending: false })
-        .limit(5)
+        .limit(5))
 
       if (recent) {
         const mapped: RecentCall[] = (recent as any[]).map((r) => ({

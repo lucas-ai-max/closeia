@@ -204,29 +204,38 @@ export default function DashboardPage() {
       const chartStartIso = chartStart.toISOString()
 
       try {
+        const orgFilter = profile?.organizationId ?? ''
+        const userFilter = profile?.role === 'SELLER' ? (await supabase.auth.getUser()).data.user?.id ?? '' : ''
+
+        const addScope = (query: any) => {
+          if (orgFilter) query = query.eq('organization_id', orgFilter)
+          if (userFilter) query = query.eq('user_id', userFilter)
+          return query
+        }
+
         const [resumoPeriod, resumoToday, callsInRangeRes, recentRes, chartCalls, topPerfData] =
           await Promise.all([
-            supabase
+            addScope(supabase
               .from('calls')
               .select('*', { count: 'exact', head: true })
               .eq('status', 'COMPLETED')
               .gte('ended_at', rangeStart)
-              .lte('ended_at', rangeEnd)
+              .lte('ended_at', rangeEnd))
               .then((r: any) => r, () => ({ count: 0, data: null, error: true })),
-            supabase
+            addScope(supabase
               .from('calls')
               .select('*', { count: 'exact', head: true })
               .eq('status', 'COMPLETED')
-              .gte('started_at', startOfDayIso)
+              .gte('started_at', startOfDayIso))
               .then((r: any) => r, () => ({ count: 0, data: null, error: true })),
-            supabase
+            addScope(supabase
               .from('calls')
               .select('id')
               .eq('status', 'COMPLETED')
               .gte('ended_at', rangeStart)
-              .lte('ended_at', rangeEnd)
+              .lte('ended_at', rangeEnd))
               .then((r: any) => r, () => ({ data: [], error: true })),
-            supabase
+            addScope(supabase
               .from('calls')
               .select(`
                 id,
@@ -236,13 +245,13 @@ export default function DashboardPage() {
               `)
               .eq('status', 'COMPLETED')
               .order('ended_at', { ascending: false })
-              .limit(RECENT_CALLS_LIMIT)
+              .limit(RECENT_CALLS_LIMIT))
               .then((r: any) => r, () => ({ data: [], error: true })),
-            supabase
+            addScope(supabase
               .from('calls')
               .select('started_at, ended_at')
               .eq('status', 'COMPLETED')
-              .gte('ended_at', chartStartIso)
+              .gte('ended_at', chartStartIso))
               .then((r: any) => r, () => ({ data: [], error: true })),
             profile?.role === 'MANAGER' && profile?.organizationId
               ? Promise.all([
@@ -254,12 +263,25 @@ export default function DashboardPage() {
                   .from('calls')
                   .select('user_id, ended_at')
                   .eq('status', 'COMPLETED')
+                  .eq('organization_id', profile.organizationId)
                   .gte('ended_at', rangeStart)
                   .lte('ended_at', rangeEnd),
                 supabase
-                  .from('call_summaries')
-                  .select('call_id, result, calls!call_id(user_id)')
-                  .eq('result', 'CONVERTED'),
+                  .from('calls')
+                  .select('id, user_id')
+                  .eq('status', 'COMPLETED')
+                  .eq('organization_id', profile.organizationId)
+                  .gte('ended_at', rangeStart)
+                  .lte('ended_at', rangeEnd)
+                  .then(async (callsRes: any) => {
+                    if (!callsRes.data?.length) return { data: [] }
+                    const callIds = callsRes.data.map((c: any) => c.id)
+                    return supabase
+                      .from('call_summaries')
+                      .select('call_id, result, calls!call_id(user_id)')
+                      .eq('result', 'CONVERTED')
+                      .in('call_id', callIds)
+                  }),
               ]).then((r: any) => r, () => [null, null, null])
               : Promise.resolve([null, null, null]),
           ])
