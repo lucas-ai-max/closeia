@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createCheckoutSession } from '@/lib/stripe'
 import { z } from 'zod'
 
@@ -72,8 +73,9 @@ export async function POST(request: NextRequest) {
     const customerEmail = (profile as { email: string | null })?.email ?? user.email ?? ''
     const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
-    // Create purchase record (pending)
-    const { data: purchase, error: insertError } = await supabase
+    // Create purchase record (pending) — admin client bypasses RLS
+    const adminDb = createAdminClient()
+    const { data: purchase, error: insertError } = await adminDb
       .from('extra_hours_purchases')
       .insert({
         organization_id: organizationId,
@@ -119,7 +121,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Update purchase with stripe session ID
-    await supabase
+    await adminDb
       .from('extra_hours_purchases')
       .update({ stripe_session_id: sessionResult.sessionId })
       .eq('id', purchase.id)
