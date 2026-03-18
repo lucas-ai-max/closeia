@@ -1428,9 +1428,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         async function initDeepgramClients(ws: WebSocket): Promise<void> {
             // Close existing clients to prevent resource leaks (timers, WebSocket connections)
             closeDeepgramClients();
-            const dgChannels = callPlatform === 'web' ? 2 : 1;
-            dgLeadClient = new DeepgramRealtimeClient('lead', dgChannels);
-            dgSellerClient = new DeepgramRealtimeClient('seller', dgChannels);
+            const isWeb = callPlatform === 'web';
+            const dgOpts = {
+                encoding: isWeb ? 'linear16' : 'opus',
+                channels: 1,
+                sampleRate: isWeb ? 16000 : 48000,
+            };
+            dgLeadClient = new DeepgramRealtimeClient({ role: 'lead', ...dgOpts });
+            dgSellerClient = new DeepgramRealtimeClient({ role: 'seller', ...dgOpts });
             const setupCallbacks = (client: DeepgramRealtimeClient, role: 'seller' | 'lead'): void => {
                 client.onFinal = (text: string) => {
                     pendingTranscriptions++;
@@ -1514,8 +1519,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 sessionData.webmHeader[idx] = audioBuf;
                 logger.info(`📦 Cached WebM header for ${role} (${audioBuf.length} bytes)`);
             }
-            // Buffer audio chunks for recording
-            if (sessionData) {
+            // Buffer audio chunks for recording (only WebM/Opus from extension, not raw PCM)
+            if (sessionData && callPlatform !== 'web') {
                 if (!sessionData.recordingChunks) sessionData.recordingChunks = { lead: [], seller: [] };
                 sessionData.recordingChunks[role].push(audioBuf);
             }
@@ -1526,7 +1531,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                     logger.warn(`⚠️ Deepgram [${role}] client not initialized; dropping audio chunk`);
                     return;
                 }
-                if (isHeader) {
+                if (isHeader && callPlatform !== 'web') {
                     client.setWebmHeader(audioBuf);
                 }
                 if (dgAudioChunkCount <= 3 || dgAudioChunkCount % 100 === 0) {

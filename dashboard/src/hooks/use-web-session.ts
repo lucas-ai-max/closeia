@@ -364,63 +364,62 @@ export function useWebSession() {
     }
   }, [getToken, wsSend, flushQueue, handleWsMessage])
 
-  // Start recording cycle for a stream
+  // Start streaming raw PCM audio to backend via ScriptProcessorNode
+  // Also starts MediaRecorder for full-call recording (WebM for storage)
   const startRecording = useCallback((
     stream: MediaStream,
     role: 'lead' | 'seller',
     chunksRef: React.MutableRefObject<Blob[]>,
     recorderRef: React.MutableRefObject<MediaRecorder | null>
   ) => {
-    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
-      .find(type => MediaRecorder.isTypeSupported(type)) || ''
+    // --- 1. Raw PCM streaming to Deepgram (via ScriptProcessorNode) ---
+    const audioCtx = new AudioContext({ sampleRate: 16000 })
+    const source = audioCtx.createMediaStreamSource(stream)
+    // 4096 samples buffer, 1 input channel, 1 output channel
+    const processor = audioCtx.createScriptProcessor(4096, 1, 1)
 
-    const recorder = new MediaRecorder(stream, {
-      mimeType: mimeType || undefined,
-    })
-    recorderRef.current = recorder
+    source.connect(processor)
+    // Connect to destination to keep the processor alive (required by Chrome)
+    processor.connect(audioCtx.destination)
 
-    // First chunk contains the WebM init segment (header) — required by Deepgram
-    let isFirstChunk = true
-
-    recorder.ondataavailable = async (event) => {
-      if (!event.data || event.data.size === 0) return
+    processor.onaudioprocess = (e) => {
       if (!isActiveRef.current) return
+      const inputData = e.inputBuffer.getChannelData(0)
 
-      // Save for full recording
-      if (chunksRef.current.length < MAX_RECORDING_CHUNKS) {
+      // Convert float32 [-1, 1] to int16 PCM [-32768, 32767]
+      const pcm16 = new Int16Array(inputData.length)
+      for (let i = 0; i < inputData.length; i++) {
+        const s = Math.max(-1, Math.min(1, inputData[i]))
+        pcm16[i] = s < 0 ? s * 32768 : s * 32767
+      }
+
+      // Convert to base64
+      const bytes = new Uint8Array(pcm16.buffer)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+
+      wsSend('audio:segment', {
+        audio: btoa(binary),
+        size: bytes.length,
+        role,
+        encoding: 'linear16',
+        sampleRate: 16000,
+        speakerName: role === 'seller' ? 'Vendedor' : (configRef.current?.leadName || 'Lead'),
+      })
+    }
+
+    // --- 2. MediaRecorder for full-call recording (WebM for storage only) ---
+    const mimeType = ['audio/webm;codecs=opus', 'audio/webm']
+      .find(type => MediaRecorder.isTypeSupported(type)) || ''
+    const recorder = new MediaRecorder(stream, { mimeType: mimeType || undefined })
+    recorderRef.current = recorder
+    recorder.ondataavailable = (event) => {
+      if (event.data?.size > 0 && chunksRef.current.length < MAX_RECORDING_CHUNKS) {
         chunksRef.current.push(event.data)
       }
-
-      // Mark first chunk as header
-      const isHeader = isFirstChunk
-      isFirstChunk = false
-
-      // Convert to base64 and send via WebSocket
-      try {
-        const buffer = await event.data.arrayBuffer()
-        const bytes = new Uint8Array(buffer)
-        let binary = ''
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i])
-        }
-        const base64 = btoa(binary)
-
-        wsSend('audio:segment', {
-          audio: base64,
-          size: event.data.size,
-          role,
-          isHeader,
-          speakerName: role === 'seller' ? 'Vendedor' : (configRef.current?.leadName || 'Lead'),
-        })
-      } catch {
-        // Encoding error — skip chunk
-      }
     }
-
-    recorder.onerror = () => {
-      // Recorder error — will be handled by stream end
-    }
-
     recorder.start(RECORDING_TIMESLICE_MS)
   }, [wsSend])
 

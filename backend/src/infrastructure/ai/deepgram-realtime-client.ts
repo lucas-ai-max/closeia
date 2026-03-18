@@ -7,7 +7,6 @@ const DEEPGRAM_WS_URL = 'wss://api.deepgram.com/v1/listen';
 const BASE_DEEPGRAM_PARAMS: Record<string, string> = {
     model: 'nova-2',
     language: 'pt-BR',
-    encoding: 'opus',
     punctuate: 'true',
     smart_format: 'true',
     interim_results: 'true',
@@ -15,6 +14,14 @@ const BASE_DEEPGRAM_PARAMS: Record<string, string> = {
     utterance_end_ms: '1200',
     vad_events: 'true',
 };
+
+export interface DeepgramClientOptions {
+    role: string;
+    /** 'opus' for extension (WebM/Opus), 'linear16' for web session (raw PCM) */
+    encoding?: string;
+    channels?: number;
+    sampleRate?: number;
+}
 
 const KEEPALIVE_INTERVAL_MS = 3_000;
 const RECONNECT_DELAY_MS = 1_000;
@@ -67,7 +74,9 @@ export class DeepgramRealtimeClient {
     private isClosed = false;
     private isSilenceClosed = false;
     private role: string;
+    private encoding: string;
     private channels: number;
+    private sampleRate: number;
     private pendingAudio: Buffer[] = [];
     private droppedAudioCount = 0;
     private lastSpeechAt: number = Date.now();
@@ -79,9 +88,11 @@ export class DeepgramRealtimeClient {
     onUtteranceEnd: DeepgramUtteranceEndCallback = () => {};
     onError: DeepgramErrorCallback = () => {};
 
-    constructor(role: string, channels: number = 1) {
-        this.role = role;
-        this.channels = channels;
+    constructor(opts: DeepgramClientOptions) {
+        this.role = opts.role;
+        this.encoding = opts.encoding || 'opus';
+        this.channels = opts.channels || 1;
+        this.sampleRate = opts.sampleRate || 48000;
     }
 
     async connect(): Promise<void> {
@@ -92,10 +103,15 @@ export class DeepgramRealtimeClient {
             throw new Error('DEEPGRAM_API_KEY is not configured');
         }
 
-        const params = { ...BASE_DEEPGRAM_PARAMS, channels: String(this.channels) };
+        const params = {
+            ...BASE_DEEPGRAM_PARAMS,
+            encoding: this.encoding,
+            channels: String(this.channels),
+            sample_rate: String(this.sampleRate),
+        };
         const queryString = new URLSearchParams(params).toString();
         const url = `${DEEPGRAM_WS_URL}?${queryString}`;
-        logger.info(`🎙️ Deepgram [${this.role}] connecting with channels=${this.channels}`);
+        logger.info(`🎙️ Deepgram [${this.role}] connecting: encoding=${this.encoding} channels=${this.channels} sampleRate=${this.sampleRate}`);
 
         this.isSilenceClosed = false;
         this.lastSpeechAt = Date.now();
