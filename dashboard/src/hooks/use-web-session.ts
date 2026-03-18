@@ -114,6 +114,9 @@ export function useWebSession() {
   const isActiveRef = useRef(false)
   const stopRef = useRef<(result: CallResult) => Promise<void>>(async () => {})
   const audioContextsRef = useRef<AudioContext[]>([])
+  const pendingMediaStartRef = useRef<{ display: MediaStream; mic: MediaStream | null } | null>(null)
+  const startMediaStreamingRef = useRef<(s: MediaStream) => void>(() => {})
+  const startFullCallRecordingRef = useRef<(d: MediaStream, m: MediaStream | null) => void>(() => {})
 
   // Get supabase token
   const getToken = useCallback(async (): Promise<string> => {
@@ -152,6 +155,13 @@ export function useWebSession() {
         callIdRef.current = callId
         setState(prev => ({ ...prev, callId, status: 'active' }))
         flushQueue()
+        // Start video streaming + recording now that callId is confirmed
+        if (pendingMediaStartRef.current) {
+          const { display, mic } = pendingMediaStartRef.current
+          pendingMediaStartRef.current = null
+          startMediaStreamingRef.current(display)
+          startFullCallRecordingRef.current(display, mic)
+        }
         break
       }
       case 'transcript:chunk': {
@@ -408,6 +418,10 @@ export function useWebSession() {
     recorder.start(2000)
   }, [])
 
+  // Keep refs in sync for use in handleWsMessage
+  startMediaStreamingRef.current = startMediaStreaming
+  startFullCallRecordingRef.current = startFullCallRecording
+
   // Upload recording to Supabase Storage
   const uploadRecording = useCallback(async (callId: string): Promise<string | null> => {
     const recorder = fullRecorderRef.current
@@ -505,18 +519,15 @@ export function useWebSession() {
       setState(prev => ({ ...prev, status: 'connecting' }))
       await connectWs()
 
-      // 4. Start PCM audio streaming (for Deepgram transcription)
+      // 4. Start PCM audio streaming (for Deepgram transcription) — starts immediately
       const leadAudioStream = new MediaStream(audioTracks)
       startPcmStreaming(leadAudioStream, 'lead')
       if (micStream) startPcmStreaming(micStream, 'seller')
 
-      // 5. Start video streaming for Ao Vivo (media:stream)
-      startMediaStreaming(displayStream)
+      // 5. Video streaming + recording start AFTER call:started (need callId on backend)
+      pendingMediaStartRef.current = { display: displayStream, mic: micStream }
 
-      // 6. Start full call recording (video + mixed audio for storage)
-      startFullCallRecording(displayStream, micStream)
-
-      // 7. Start duration timer
+      // 6. Start duration timer
       startTimeRef.current = Date.now()
       durationIntervalRef.current = setInterval(() => {
         setState(prev => ({ ...prev, duration: Math.floor((Date.now() - startTimeRef.current) / 1000) }))
