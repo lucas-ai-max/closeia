@@ -379,6 +379,9 @@ export function useWebSession() {
     })
     recorderRef.current = recorder
 
+    // First chunk contains the WebM init segment (header) — required by Deepgram
+    let isFirstChunk = true
+
     recorder.ondataavailable = async (event) => {
       if (!event.data || event.data.size === 0) return
       if (!isActiveRef.current) return
@@ -387,6 +390,10 @@ export function useWebSession() {
       if (chunksRef.current.length < MAX_RECORDING_CHUNKS) {
         chunksRef.current.push(event.data)
       }
+
+      // Mark first chunk as header
+      const isHeader = isFirstChunk
+      isFirstChunk = false
 
       // Convert to base64 and send via WebSocket
       try {
@@ -402,6 +409,7 @@ export function useWebSession() {
           audio: base64,
           size: event.data.size,
           role,
+          isHeader,
           speakerName: role === 'seller' ? 'Vendedor' : (configRef.current?.leadName || 'Lead'),
         })
       } catch {
