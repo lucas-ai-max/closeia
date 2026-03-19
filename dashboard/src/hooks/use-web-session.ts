@@ -154,6 +154,7 @@ export function useWebSession() {
         const callId = data.payload?.callId as string
         callIdRef.current = callId
         setState(prev => ({ ...prev, callId, status: 'active' }))
+        try { localStorage.setItem('helpseller_session_active', '1') } catch {}
         flushQueue()
         // Start video streaming + recording now that callId is confirmed
         if (pendingMediaStartRef.current) {
@@ -591,6 +592,7 @@ export function useWebSession() {
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(1000, 'Session ended'); wsRef.current = null }
 
     setState(prev => ({ ...prev, status: 'ended', isStreaming: false }))
+    try { localStorage.removeItem('helpseller_session_active') } catch {}
   }, [wsSend, uploadRecording])
 
   stopRef.current = stop
@@ -624,6 +626,21 @@ export function useWebSession() {
       micStreamRef.current?.getTracks().forEach(t => t.stop())
       audioContextsRef.current.forEach(ctx => ctx.close().catch(() => {}))
       if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(1000, 'Unmount') }
+    }
+  }, [])
+
+  // Prevent closing tab/browser during active session
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isActiveRef.current) {
+        e.preventDefault()
+        e.returnValue = 'Sessão ativa! Se sair, a transcrição será interrompida.'
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('beforeunload', handler)
+      try { localStorage.removeItem('helpseller_session_active') } catch {}
     }
   }, [])
 

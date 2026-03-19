@@ -1,7 +1,38 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { DashboardContentGuard } from '@/components/dashboard-content-guard'
 import { ProductTour } from '@/components/product-tour'
+
+function ActiveSessionBanner() {
+  const [active, setActive] = useState(false)
+  const pathname = usePathname()
+
+  useEffect(() => {
+    const check = () => setActive(localStorage.getItem('helpseller_session_active') === '1')
+    check()
+    const interval = setInterval(check, 1000)
+    window.addEventListener('storage', check)
+    return () => { clearInterval(interval); window.removeEventListener('storage', check) }
+  }, [])
+
+  if (!active || pathname === '/session') return null
+
+  return (
+    <div className="bg-amber-500/90 text-black px-4 py-2 text-sm font-semibold flex items-center justify-between rounded-lg mb-4">
+      <div className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+        Sessão ativa — volte para /session antes de navegar, ou a transcrição será interrompida.
+      </div>
+      <a href="/session" className="bg-black/20 hover:bg-black/30 text-white px-3 py-1 rounded-md text-xs font-bold transition-colors">
+        Voltar à sessão
+      </a>
+    </div>
+  )
+}
 
 export default function DashboardLayout({
   children,
@@ -26,6 +57,7 @@ export default function DashboardLayout({
       </div>
       <MobileNav />
       <main className="flex-1 overflow-y-auto scrollbar-hide p-8 min-h-screen pt-14 md:pt-8 relative z-10">
+        <ActiveSessionBanner />
         <DashboardContentGuard>{children}</DashboardContentGuard>
       </main>
       <ProductTour />
