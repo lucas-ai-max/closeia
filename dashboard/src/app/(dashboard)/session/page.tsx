@@ -30,7 +30,7 @@ export default function SessionPage() {
     const popup = window.open(
       `/session/live?${params.toString()}`,
       'helpseller-session',
-      `width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top},resizable=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no`
+      `popup=yes,width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top},resizable=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no`
     )
     popupRef.current = popup
     setPopupOpen(true)
@@ -62,8 +62,10 @@ export default function SessionPage() {
   }, [popupOpen, openPopup, closePopup])
 
   const handleStart = useCallback((config: SessionConfig) => {
-    start(config)
+    // Open popup FIRST (synchronous, in direct click context) to avoid browser blocking as tab
     openPopup(config)
+    // Then start the async session (getDisplayMedia, WebSocket, etc.)
+    start(config)
   }, [start, openPopup])
 
   const handleReset = useCallback(() => {
