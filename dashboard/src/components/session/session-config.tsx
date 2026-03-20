@@ -30,7 +30,36 @@ export function SessionConfigForm({ onStart }: SessionConfigFormProps) {
   const [coachId, setCoachId] = useState('')
   const [scripts, setScripts] = useState<Script[]>([])
   const [coaches, setCoaches] = useState<Coach[]>([])
+  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking')
+  const [requestingMic, setRequestingMic] = useState(false)
   const supabase = createClient()
+
+  // Check microphone permission on mount
+  useEffect(() => {
+    async function checkMic() {
+      try {
+        const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+        setMicPermission(result.state as 'granted' | 'denied' | 'prompt')
+        result.onchange = () => setMicPermission(result.state as 'granted' | 'denied' | 'prompt')
+      } catch {
+        // Firefox doesn't support permissions.query for microphone
+        setMicPermission('prompt')
+      }
+    }
+    checkMic()
+  }, [])
+
+  const requestMicPermission = async () => {
+    setRequestingMic(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(t => t.stop())
+      setMicPermission('granted')
+    } catch {
+      setMicPermission('denied')
+    }
+    setRequestingMic(false)
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -126,6 +155,38 @@ export function SessionConfigForm({ onStart }: SessionConfigFormProps) {
             )}
 
             <div className="pt-2 space-y-3">
+              {/* Mic permission alert */}
+              {micPermission !== 'granted' && micPermission !== 'checking' && (
+                <div className={`flex items-center gap-3 p-3 rounded-xl border ${micPermission === 'denied' ? 'border-red-500/30 bg-red-500/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
+                  <span className="material-icons-outlined text-lg" style={{ color: micPermission === 'denied' ? '#ef4444' : '#f59e0b' }}>mic_off</span>
+                  <div className="flex-1">
+                    <p className={`text-xs font-medium ${micPermission === 'denied' ? 'text-red-300' : 'text-amber-200'}`}>
+                      {micPermission === 'denied'
+                        ? 'Microfone bloqueado. Habilite nas configurações do navegador.'
+                        : 'Permissão de microfone necessária para a sessão funcionar.'}
+                    </p>
+                  </div>
+                  {micPermission === 'prompt' && (
+                    <button
+                      type="button"
+                      onClick={requestMicPermission}
+                      disabled={requestingMic}
+                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
+                      style={{ backgroundColor: NEON_PINK }}
+                    >
+                      {requestingMic ? 'Aguarde...' : 'Permitir'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {micPermission === 'granted' && (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                  <span className="material-icons-outlined text-sm text-emerald-400">mic</span>
+                  <p className="text-xs text-emerald-300">Microfone habilitado</p>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 className="w-full h-12 text-base font-semibold text-white rounded-xl transition-all hover:brightness-110"
