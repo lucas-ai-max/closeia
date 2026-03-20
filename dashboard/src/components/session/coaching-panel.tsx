@@ -129,11 +129,14 @@ export function CoachingPanel({ messages, currentSpinPhase, onDismiss }: Coachin
 
         {activeMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 py-12">
-            <span className="material-icons-outlined text-4xl mb-2 opacity-30">psychology</span>
-            <p className="text-sm">
-              {currentSpinPhase ? 'Analisando conversa...' : 'Aguardando conversa...'}
-            </p>
-            <p className="text-xs mt-1 text-gray-600">Sugestões aparecerão aqui automaticamente</p>
+            {currentSpinPhase ? (
+              <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-pink-500 animate-spin" />
+            ) : (
+              <>
+                <span className="material-icons-outlined text-4xl mb-2 opacity-30">psychology</span>
+                <p className="text-xs text-gray-600">Sugestões aparecerão aqui</p>
+              </>
+            )}
           </div>
         )}
       </div>

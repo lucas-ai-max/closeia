@@ -1298,7 +1298,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
          * Called by both Whisper (sync) and Deepgram (streaming callback).
          */
         const PERSIST_BATCH_INTERVAL = env.PERSIST_BATCH_INTERVAL_MS;
-        const MIN_COACH_GAP = 4000;
+        const MIN_COACH_GAP = 15000; // 15s between coaching calls to reduce OpenAI costs
         let isCoaching = false;
 
         async function processTranscriptionResult(text: string, role: 'seller' | 'lead', ws: WebSocket): Promise<void> {
@@ -1366,7 +1366,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 if (ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'coach:thinking', payload: { timestamp: now } }));
                 }
-                const recentTranscript = (sessionData.transcript || []).slice(-30);
+                const recentTranscript = (sessionData.transcript || []).slice(-15);
                 const fullContext = recentTranscript
                     .map((t: any) => `${t.role === 'seller' ? 'VENDEDOR' : 'LEAD'}: ${t.text}`)
                     .join('\n');

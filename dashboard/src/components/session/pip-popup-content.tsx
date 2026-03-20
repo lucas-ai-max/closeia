@@ -155,8 +155,14 @@ export function PipPopupContent({ state, onDismiss, onStop }: Props) {
           <>
             {activeCoach.length === 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', color: '#4b5563' }}>
-                <span style={{ fontSize: 32, marginBottom: 8, opacity: 0.3 }}>🧠</span>
-                <p style={{ fontSize: 12 }}>{state.currentSpinPhase ? 'Analisando...' : 'Aguardando conversa...'}</p>
+                {state.currentSpinPhase ? (
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: NEON_PINK, animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <>
+                    <span style={{ fontSize: 32, marginBottom: 8, opacity: 0.3 }}>🧠</span>
+                    <p style={{ fontSize: 12 }}>Sugestões aparecerão aqui</p>
+                  </>
+                )}
               </div>
             )}
             {activeCoach.map(msg => (
