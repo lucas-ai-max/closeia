@@ -65,6 +65,10 @@ export default function CallsPage() {
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [selectedSeller, setSelectedSeller] = useState<string>('all');
     const [callsLoadError, setCallsLoadError] = useState<boolean>(false);
+    const [dateFilter, setDateFilter] = useState<string>('all');
+    const [page, setPage] = useState<number>(0);
+    const [hasMore, setHasMore] = useState<boolean>(true);
+    const PAGE_SIZE = 50;
 
     const supabase = createClient();
 
@@ -119,7 +123,7 @@ export default function CallsPage() {
         fetchCalls();
         const interval = setInterval(fetchCalls, 8000);
         return () => clearInterval(interval);
-    }, [mounted, selectedSeller, currentUserId, orgId, userRole]);
+    }, [mounted, selectedSeller, currentUserId, orgId, userRole, dateFilter]);
 
     const callIdFromUrl = searchParams.get('callId');
     useEffect(() => {
@@ -211,7 +215,19 @@ export default function CallsPage() {
         return () => clearInterval(intervalId);
     }, [selectedCall?.id, selectedCallDetail?.id, selectedCallDetail?.status, selectedCallDetail?.summary, fetchCallDetail]);
 
-    const fetchCalls = async () => {
+    const getDateRange = (filter: string): { from: string; to: string } | null => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        switch (filter) {
+            case 'today': return { from: todayStart.toISOString(), to: now.toISOString() };
+            case '7d': return { from: new Date(now.getTime() - 7 * 86400000).toISOString(), to: now.toISOString() };
+            case '30d': return { from: new Date(now.getTime() - 30 * 86400000).toISOString(), to: now.toISOString() };
+            case '90d': return { from: new Date(now.getTime() - 90 * 86400000).toISOString(), to: now.toISOString() };
+            default: return null;
+        }
+    };
+
+    const fetchCalls = async (loadMore = false) => {
         if (!currentUserId) return;
 
         const fullSelect = `
@@ -222,13 +238,17 @@ export default function CallsPage() {
             summary:call_summaries(lead_sentiment, result)
         `;
 
+        const currentPage = loadMore ? page + 1 : 0;
+        const from = currentPage * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
         try {
             let q = supabase
                 .from('calls')
                 .select(fullSelect)
-                .neq('status', 'ACTIVE') // Filter out active calls
+                .neq('status', 'ACTIVE')
                 .order('started_at', { ascending: false })
-                .limit(50);
+                .range(from, to);
 
             if (userRole === 'SELLER') {
                 q = q.eq('user_id', currentUserId);
@@ -237,28 +257,34 @@ export default function CallsPage() {
                 if (selectedSeller !== 'all') q = q.eq('user_id', selectedSeller);
             }
 
+            const dateRange = getDateRange(dateFilter);
+            if (dateRange) {
+                q = q.gte('started_at', dateRange.from).lte('started_at', dateRange.to);
+            }
+
             const { data, error } = await q;
 
             if (error) throw error;
 
+            const mapped = (data as any[] || []).map((c: any) => ({
+                ...c,
+                user: c.user,
+                summary: Array.isArray(c.summary) ? c.summary[0] : c.summary,
+            }));
+
             setCallsLoadError(false);
-            setCalls(
-                (data as any[] || []).map((c: any) => ({
-                    ...c,
-                    user: c.user,
-                    summary: Array.isArray(c.summary) ? c.summary[0] : c.summary,
-                }))
-            );
+            setCalls(loadMore ? [...calls, ...mapped] : mapped);
+            setPage(currentPage);
+            setHasMore(mapped.length === PAGE_SIZE);
         } catch (error) {
             console.error('Error fetching calls:', error);
-            // Fallback: fetch without joins if types/relationships are failing
             try {
                 let q = supabase
                     .from('calls')
                     .select('*')
                     .neq('status', 'ACTIVE')
                     .order('started_at', { ascending: false })
-                    .limit(50);
+                    .range(from, to);
 
                 if (userRole === 'SELLER') {
                     q = q.eq('user_id', currentUserId);
@@ -267,17 +293,24 @@ export default function CallsPage() {
                     if (selectedSeller !== 'all') q = q.eq('user_id', selectedSeller);
                 }
 
+                const dateRange = getDateRange(dateFilter);
+                if (dateRange) {
+                    q = q.gte('started_at', dateRange.from).lte('started_at', dateRange.to);
+                }
+
                 const { data: fallbackData, error: fallbackError } = await q;
                 if (fallbackError) throw fallbackError;
 
+                const mapped = (fallbackData as any[] || []).map((c: any) => ({
+                    ...c,
+                    user: c.user ?? undefined,
+                    summary: c.summary,
+                }));
+
                 setCallsLoadError(false);
-                setCalls(
-                    (fallbackData as any[] || []).map((c: any) => ({
-                        ...c,
-                        user: c.user ?? undefined,
-                        summary: c.summary,
-                    }))
-                );
+                setCalls(loadMore ? [...calls, ...mapped] : mapped);
+                setPage(currentPage);
+                setHasMore(mapped.length === PAGE_SIZE);
             } catch (finalError) {
                 console.error('Final error fetching calls:', finalError);
                 setCalls([]);
@@ -307,13 +340,25 @@ export default function CallsPage() {
                 </div>
             )}
 
-            {/* Seller Filter (Manager only) */}
-            {userRole !== 'SELLER' && teamMembers.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3 px-1">
-                    <Filter className="w-4 h-4 text-gray-500 shrink-0" />
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3 px-1">
+                <Filter className="w-4 h-4 text-gray-500 shrink-0" />
+                <select
+                    value={dateFilter}
+                    onChange={e => { setDateFilter(e.target.value); setPage(0); }}
+                    className="bg-[#1e1e1e] border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-neon-pink/50 appearance-none cursor-pointer"
+                    style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+                >
+                    <option value="all">Todas as datas</option>
+                    <option value="today">Hoje</option>
+                    <option value="7d">Últimos 7 dias</option>
+                    <option value="30d">Últimos 30 dias</option>
+                    <option value="90d">Últimos 90 dias</option>
+                </select>
+                {userRole !== 'SELLER' && teamMembers.length > 0 && (
                     <select
                         value={selectedSeller}
-                        onChange={e => setSelectedSeller(e.target.value)}
+                        onChange={e => { setSelectedSeller(e.target.value); setPage(0); }}
                         className="bg-[#1e1e1e] border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-neon-pink/50 appearance-none cursor-pointer w-full sm:w-auto sm:min-w-[200px]"
                         style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
                     >
@@ -322,9 +367,9 @@ export default function CallsPage() {
                             <option key={m.id} value={m.id}>{m.full_name || 'Sem nome'}</option>
                         ))}
                     </select>
-                    <span className="text-xs text-gray-500">{calls.length} chamada{calls.length !== 1 ? 's' : ''}</span>
-                </div>
-            )}
+                )}
+                <span className="text-xs text-gray-500">{calls.length} chamada{calls.length !== 1 ? 's' : ''}{hasMore ? '+' : ''}</span>
+            </div>
 
             <div className="flex flex-col lg:flex-row gap-4 min-h-0 lg:min-h-[calc(100vh-12rem)]">
                 {/* Calls List Sidebar */}
@@ -401,6 +446,14 @@ export default function CallsPage() {
 
                                 </div>
                             ))
+                        )}
+                        {hasMore && calls.length > 0 && (
+                            <button
+                                onClick={() => fetchCalls(true)}
+                                className="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                            >
+                                Carregar mais...
+                            </button>
                         )}
                     </div>
                 </div>
