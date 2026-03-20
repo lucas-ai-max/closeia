@@ -380,11 +380,10 @@ export function TourButton() {
   return (
     <button
       onClick={handleStart}
-      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-      title="Iniciar tour guiado"
+      className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+      title="Tour Guiado"
     >
-      <span className="material-icons-outlined text-[16px]">help_outline</span>
-      Tour Guiado
+      <span className="material-icons-outlined text-[14px]">help_outline</span>
     </button>
   )
 }
