@@ -12,20 +12,45 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false)
+  const [resending, setResending] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setShowResendConfirmation(false)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      toast.error('Erro ao fazer login. Verifique suas credenciais.')
+      if (error.message === 'Email not confirmed') {
+        setShowResendConfirmation(true)
+        toast.error('E-mail ainda não confirmado. Verifique sua caixa de entrada.')
+      } else if (error.message === 'Invalid login credentials') {
+        toast.error('E-mail ou senha incorretos.')
+      } else {
+        toast.error('Erro ao fazer login. Tente novamente.')
+      }
     } else {
       router.push('/dashboard')
       router.refresh()
     }
     setLoading(false)
+  }
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      toast.error('Digite seu e-mail acima primeiro.')
+      return
+    }
+    setResending(true)
+    const { error } = await supabase.auth.resend({ type: 'signup', email })
+    if (error) {
+      toast.error('Erro ao reenviar. Tente novamente em alguns minutos.')
+    } else {
+      toast.success('E-mail de confirmação reenviado! Verifique sua caixa de entrada.')
+    }
+    setResending(false)
   }
 
   const handleGoogleLogin = async () => {
@@ -129,6 +154,20 @@ export default function LoginPage() {
                   {loading ? 'Entrando...' : 'Entrar'}
                 </button>
               </form>
+              {showResendConfirmation && (
+                <div className="mt-4 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-center">
+                  <p className="text-xs text-amber-200 mb-2">Seu e-mail ainda não foi confirmado.</p>
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resending}
+                    className="text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ color: NEON_PINK }}
+                  >
+                    {resending ? 'Reenviando...' : 'Reenviar e-mail de confirmação'}
+                  </button>
+                </div>
+              )}
               <div className="mt-6">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
