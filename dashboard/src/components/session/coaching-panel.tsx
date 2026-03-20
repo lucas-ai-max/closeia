@@ -124,7 +124,7 @@ export function CoachingPanel({ messages, currentSpinPhase, onDismiss }: Coachin
         <h3 className="text-sm font-semibold text-white">Coach IA</h3>
         <span className="text-xs text-gray-500 ml-auto">{activeMessages.length} sugestões</span>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-pink">
         <SpinIndicator currentPhase={currentSpinPhase} />
 
         {activeMessages.map(msg => (

@@ -314,7 +314,7 @@ function FeatureCard({ feature }: FeatureCardProps) {
   const Icon = feature.icon
   return (
     <div
-      className="group relative flex flex-col p-8 rounded-2xl bg-[#14151A]/60 backdrop-blur-sm border border-[#2A2A2A] hover:bg-[#18191F]/80 transition-colors duration-500 cursor-pointer overflow-hidden ring-1 ring-white/5"
+      className="group relative flex flex-col p-5 sm:p-8 rounded-2xl bg-[#14151A]/60 backdrop-blur-sm border border-[#2A2A2A] hover:bg-[#18191F]/80 transition-colors duration-500 cursor-pointer overflow-hidden ring-1 ring-white/5"
       onMouseMove={handleMouseMove}
     >
       <div
@@ -371,7 +371,7 @@ export default function LandingPage() {
       >
         <Container className="flex items-center justify-between h-[72px]">
           <Link href="/" className="group flex items-center font-medium text-lg z-50">
-            <img src="/logo.svg" alt="HelpSeller" className="h-12 w-auto transition-transform group-hover:scale-105" />
+            <img src="/logo.svg" alt="HelpSeller" className="h-8 sm:h-12 w-auto transition-transform group-hover:scale-105" />
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-[15px] font-medium text-gray-400">
             <a href="#features" className="hover:text-white transition-colors">Recursos</a>
@@ -403,7 +403,7 @@ export default function LandingPage() {
           </div>
         </Container>
         {mobileMenuOpen && (
-          <div className="md:hidden fixed top-0 left-0 right-0 min-h-screen z-40 bg-[#0B0C10]/95 backdrop-blur-lg pt-[72px] px-4 pb-8 overflow-y-auto border-t border-[#2A2A2A]">
+          <div className="md:hidden fixed inset-0 z-40 bg-[#0B0C10] backdrop-blur-lg pt-[72px] px-4 pb-8 overflow-y-auto">
             <nav className="flex flex-col gap-2 p-4">
               <a href="#features" className="block text-lg font-medium py-3 border-b border-white/10 hover:text-neon-pink transition-colors" onClick={() => setMobileMenuOpen(false)}>Recursos</a>
               <a href="#benefits" className="block text-lg font-medium py-3 border-b border-white/10 hover:text-neon-pink transition-colors" onClick={() => setMobileMenuOpen(false)}>Benefícios</a>
@@ -424,16 +424,16 @@ export default function LandingPage() {
       </header>
 
       {/* Hero — estilo NovaFlow */}
-      <section className="relative pt-40 pb-24 overflow-hidden">
+      <section className="relative pt-28 sm:pt-40 pb-16 sm:pb-24 overflow-hidden">
         <StarField />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full pointer-events-none opacity-[0.25] blur-[120px]" style={{ backgroundColor: NEON_PINK }} />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[350px] h-[350px] rounded-full pointer-events-none opacity-[0.2] blur-[150px]" style={{ backgroundColor: NEON_BLUE }} />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[250px] sm:w-[400px] h-[250px] sm:h-[400px] rounded-full pointer-events-none opacity-[0.25] blur-[120px]" style={{ backgroundColor: NEON_PINK }} />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[200px] sm:w-[350px] h-[200px] sm:h-[350px] rounded-full pointer-events-none opacity-[0.2] blur-[150px]" style={{ backgroundColor: NEON_BLUE }} />
         <Container className="relative z-10 flex flex-col items-center text-center">
-          <h1 className="text-5xl md:text-7xl font-semibold text-white mb-6 max-w-4xl leading-[1.1] tracking-tight">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-semibold text-white mb-4 sm:mb-6 max-w-4xl leading-[1.1] tracking-tight">
             Enquanto o cliente fala, a IA já sabe o que seu vendedor{' '}
             <em className="not-italic text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">precisa dizer</em>
           </h1>
-          <p className="text-xl text-gray-400 max-w-2xl mb-10 leading-relaxed">
+          <p className="text-base sm:text-xl text-gray-400 max-w-2xl mb-8 sm:mb-10 leading-relaxed px-2">
             A IA ouve cada chamada e sussurra a resposta certa no ouvido do seu vendedor — em tempo real, em português, enquanto o cliente ainda está na linha. Sem pausar. Sem improvisar. Sem perder o negócio.
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
@@ -451,9 +451,9 @@ export default function LandingPage() {
               Ver como funciona
             </a>
           </div>
-          <p className="mt-8 text-sm text-gray-500 font-medium">100% web · Funciona no navegador · Setup em 2 minutos</p>
+          <p className="mt-6 sm:mt-8 text-xs sm:text-sm text-gray-500 font-medium px-4">100% web · Funciona no navegador · Setup em 2 minutos</p>
           {/* Mock: chamada + sugestão IA */}
-          <div className="mt-20 w-full max-w-2xl rounded-xl border border-[#2A2A2A] bg-[#0B0C10]/80 backdrop-blur-xl shadow-2xl overflow-hidden ring-1 ring-white/5">
+          <div className="mt-12 sm:mt-20 w-full max-w-2xl rounded-xl border border-[#2A2A2A] bg-[#0B0C10]/80 backdrop-blur-xl shadow-2xl overflow-hidden ring-1 ring-white/5">
             <div className="h-11 border-b border-[#2A2A2A] bg-[#14151A]/90 flex items-center px-4 gap-2">
               <div className="flex gap-2">
                 <div className="w-3 h-3 rounded-full bg-[#292929]" />
@@ -480,14 +480,14 @@ export default function LandingPage() {
       </section>
 
       {/* TrustBar — stats + marquee estilo NovaFlow */}
-      <section className="py-24 overflow-hidden relative border-y border-[#1F2026]">
+      <section className="py-16 sm:py-24 overflow-hidden relative border-y border-[#1F2026]">
         <Container>
           {/* Stats row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-12 sm:mb-16">
             {TRUST_STATS.map((stat) => (
               <div key={stat.label} className="text-center">
-                <p className="text-2xl md:text-3xl font-bold text-white mb-1">{stat.value}</p>
-                <p className="text-sm text-gray-500">{stat.label}</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1">{stat.value}</p>
+                <p className="text-xs sm:text-sm text-gray-500">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -500,7 +500,7 @@ export default function LandingPage() {
             <div className="flex overflow-hidden">
               <div className="landing-marquee flex items-center gap-16 pr-16 whitespace-nowrap">
                 {[...TRUST_NAMES, ...TRUST_NAMES].map((name, i) => (
-                  <span key={`${name}-${i}`} className="text-2xl md:text-3xl font-bold text-[#333] hover:text-white transition-colors duration-500 cursor-default select-none tracking-tight">
+                  <span key={`${name}-${i}`} className="text-lg sm:text-2xl md:text-3xl font-bold text-[#333] hover:text-white transition-colors duration-500 cursor-default select-none tracking-tight">
                     {name}
                   </span>
                 ))}
@@ -511,10 +511,10 @@ export default function LandingPage() {
       </section>
 
       {/* O problema real */}
-      <section className="py-24">
+      <section className="py-16 sm:py-24">
         <Container>
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-5xl font-semibold text-white mb-6 tracking-tight">
+          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16 px-2">
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-semibold text-white mb-4 sm:mb-6 tracking-tight">
               O treinamento não vai à campo com o vendedor
             </h2>
             <p className="text-lg text-gray-500 leading-relaxed mb-4">
@@ -548,9 +548,9 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="py-20">
+      <section id="how" className="py-16 sm:py-20">
         <Container>
-          <div className="max-w-3xl mx-auto text-center mb-16">
+          <div className="max-w-3xl mx-auto text-center mb-12 sm:mb-16 px-2">
             <h2 className="text-2xl font-bold text-white sm:text-3xl">De zero a coaching na próxima chamada</h2>
             <p className="mt-4 text-gray-500 leading-relaxed">
               Três etapas. Dois minutos de setup. Nenhuma dependência de TI.
@@ -587,7 +587,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features — Engineered for High-Performance style (NovaFlow) */}
-      <section id="features" className="py-32">
+      <section id="features" className="py-16 sm:py-32">
         <Container>
           <div className="flex items-center gap-4 mb-6 max-w-xs mx-auto">
             <div className="h-px flex-1 bg-linear-to-r from-transparent to-[#2A2A2A]" />
@@ -596,8 +596,8 @@ export default function LandingPage() {
             </span>
             <div className="h-px flex-1 bg-linear-to-l from-transparent to-[#2A2A2A]" />
           </div>
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-4xl md:text-6xl font-semibold text-white mb-6 tracking-tighter leading-[1.1]">
+          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16 px-2">
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-semibold text-white mb-6 tracking-tighter leading-[1.1]">
               Tudo que seu time{' '}
               <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">
                 precisa
@@ -614,14 +614,14 @@ export default function LandingPage() {
       </section>
 
       {/* ProductDetails — 2 blocos estilo NovaFlow adaptados */}
-      <section className="py-32 overflow-hidden">
+      <section className="py-16 sm:py-32 overflow-hidden">
         <Container>
-          <div className="flex flex-col md:flex-row items-center gap-20">
+          <div className="flex flex-col md:flex-row items-center gap-10 sm:gap-20">
             <div className="flex-1">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neon-pink/10 text-neon-pink text-xs font-medium mb-6 border border-neon-pink/20 shadow-[0_0_15px_-3px_rgba(255,0,122,0.3)]">
                 <Sparkles className="w-3 h-3" /> IA na chamada
               </div>
-              <h2 className="text-4xl md:text-5xl font-semibold text-white mb-6 leading-[1.1] tracking-tight">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold text-white mb-4 sm:mb-6 leading-[1.1] tracking-tight">
                 Colabore com sua <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">IA de vendas</span>
               </h2>
               <p className="text-lg text-gray-500 mb-8 leading-relaxed max-w-lg">
@@ -666,14 +666,14 @@ export default function LandingPage() {
         </Container>
       </section>
 
-      <section className="py-32">
+      <section className="py-16 sm:py-32">
         <Container>
-          <div className="flex flex-col md:flex-row-reverse items-center gap-20">
+          <div className="flex flex-col md:flex-row-reverse items-center gap-10 sm:gap-20">
             <div className="flex-1">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neon-green/10 text-neon-green text-xs font-medium mb-6 border border-neon-green/20">
                 <BarChart3 className="w-3 h-3" /> Dashboard
               </div>
-              <h2 className="text-4xl md:text-5xl font-semibold text-white mb-6 leading-[1.1] tracking-tight">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold text-white mb-4 sm:mb-6 leading-[1.1] tracking-tight">
                 Métricas em <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-green to-emerald-400">tempo real</span>
               </h2>
               <p className="text-lg text-gray-500 mb-8 leading-relaxed">
@@ -750,7 +750,7 @@ export default function LandingPage() {
       </section>
 
       {/* Benefits — estilo TechSpecs + cards (referência NovaFlow) */}
-      <section id="benefits" className="py-24 border-y border-[#2A2A2A] bg-[#0F1014]">
+      <section id="benefits" className="py-16 sm:py-24 border-y border-[#2A2A2A] bg-[#0F1014]">
         <Container>
           <div className="flex items-center gap-4 mb-6 max-w-xs mx-auto">
             <div className="h-px flex-1 bg-linear-to-r from-transparent to-[#2A2A2A]" />
@@ -759,8 +759,8 @@ export default function LandingPage() {
             </span>
             <div className="h-px flex-1 bg-linear-to-l from-transparent to-[#2A2A2A]" />
           </div>
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-5xl font-semibold text-white mb-4 tracking-tight">
+          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16 px-2">
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-semibold text-white mb-4 tracking-tight">
               Por que usar o <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">HelpSeller</span>?
             </h2>
             <p className="text-lg text-gray-500 leading-relaxed">
@@ -791,10 +791,10 @@ export default function LandingPage() {
       </section>
 
       {/* Planos */}
-      <section id="planos" className="py-24 border-t border-[#2A2A2A]">
+      <section id="planos" className="py-16 sm:py-24 border-t border-[#2A2A2A]">
         <Container>
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12 sm:mb-16 px-2">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
               Preço justo para times brasileiros
             </h2>
             <p className="text-lg text-gray-500 max-w-xl mx-auto">
@@ -866,10 +866,10 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials */}
-      <section className="py-24 border-t border-[#2A2A2A] bg-[#0F1014]">
+      <section className="py-16 sm:py-24 border-t border-[#2A2A2A] bg-[#0F1014]">
         <Container>
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
               O que nossos clientes dizem
             </h2>
           </div>
@@ -895,10 +895,10 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="py-24 border-t border-[#2A2A2A]">
+      <section id="faq" className="py-16 sm:py-24 border-t border-[#2A2A2A]">
         <Container>
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
               Perguntas frequentes
             </h2>
             <p className="text-lg text-gray-500 max-w-xl mx-auto">
@@ -915,7 +915,7 @@ export default function LandingPage() {
                   aria-expanded={openFaqIndex === i}
                   aria-controls={`faq-answer-${i}`}
                 >
-                  <span className="font-medium text-white text-lg pr-4 group-hover:text-neon-pink transition-colors">
+                  <span className="font-medium text-white text-base sm:text-lg pr-4 group-hover:text-neon-pink transition-colors">
                     {item.question}
                   </span>
                   <span className="shrink-0 text-gray-500 group-hover:text-neon-pink transition-colors">
@@ -934,13 +934,13 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 relative">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none opacity-[0.18] blur-[140px]" style={{ backgroundColor: NEON_PINK }} />
+      <section className="py-16 sm:py-24 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] rounded-full pointer-events-none opacity-[0.18] blur-[140px]" style={{ backgroundColor: NEON_PINK }} />
         <Container>
-          <div className="relative rounded-3xl border p-12 text-center md:p-16 overflow-hidden ring-1 ring-white/5 shadow-2xl bg-[#0B0C10] border-[#2A2A2A]">
+          <div className="relative rounded-2xl sm:rounded-3xl border p-6 sm:p-12 text-center md:p-16 overflow-hidden ring-1 ring-white/5 shadow-2xl bg-[#0B0C10] border-[#2A2A2A]">
             <div className="landing-grid-bg absolute inset-0 opacity-20" aria-hidden />
             <div className="relative z-10">
-              <h2 className="text-3xl font-bold text-white sm:text-4xl">
+              <h2 className="text-2xl font-bold text-white sm:text-3xl md:text-4xl">
                 A resposta certa já está pronta. Seu vendedor só precisa{' '}
                 <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">usá-la</span>
               </h2>
@@ -967,12 +967,12 @@ export default function LandingPage() {
       </section>
 
       {/* Footer — multi-coluna estilo NovaFlow */}
-      <footer className="bg-[#0B0C10] pt-32 pb-12 border-t border-[#2A2A2A]">
+      <footer className="bg-[#0B0C10] pt-16 sm:pt-32 pb-12 border-t border-[#2A2A2A]">
         <Container>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-10 mb-16">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-8 sm:gap-10 mb-12 sm:mb-16">
             <div className="col-span-2 md:col-span-2">
               <Link href="/" className="flex items-center text-white font-medium mb-6 text-lg">
-                <img src="/logo.svg" alt="HelpSeller" className="h-12 w-auto" />
+                <img src="/logo.svg" alt="HelpSeller" className="h-8 sm:h-12 w-auto" />
               </Link>
               <p className="text-sm text-gray-500 max-w-xs">Coaching de vendas com IA em tempo real. O único produto feito para times brasileiros que querem fechar mais.</p>
             </div>

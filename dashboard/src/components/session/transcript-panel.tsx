@@ -28,7 +28,7 @@ export function TranscriptPanel({ transcript }: TranscriptPanelProps) {
       </div>
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-pink"
       >
         {transcript.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
