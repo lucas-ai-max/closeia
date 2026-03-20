@@ -194,15 +194,21 @@ export function useWebSession() {
       case 'coach:message':
       case 'COACHING_MESSAGE': {
         const p = data.payload || {}
+        const meta = p.metadata as Record<string, unknown> | undefined
+        const content = (p.content as string) || (p.description as string) || ''
+        // Build clean title from content (first sentence or first 60 chars)
+        const firstLine = content.split(/[.\n]/)[0]?.trim() || ''
+        const title = (p.title as string) || (firstLine.length > 60 ? firstLine.slice(0, 57) + '...' : firstLine)
+        const description = content.length > title.length ? content.slice(title.length).trim().replace(/^[.,\s]+/, '') : ''
         const msg: CoachMessage = {
           id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           type: (p.type as CoachMessage['type']) || 'tip',
-          title: (p.title as string) || '',
-          description: (p.description as string) || '',
-          metadata: p.metadata as Record<string, unknown> | undefined,
+          title,
+          description,
+          metadata: meta,
           timestamp: Date.now(),
         }
-        const phase = (p.metadata as Record<string, unknown>)?.phase as string | undefined
+        const phase = meta?.phase as string | undefined
         setState(prev => ({
           ...prev,
           coachMessages: [...prev.coachMessages, msg],
@@ -211,24 +217,12 @@ export function useWebSession() {
         break
       }
       case 'coach:token': {
-        const token = (data.payload?.token as string) || ''
-        if (!token) break
-        setState(prev => {
-          const msgs = [...prev.coachMessages]
-          if (msgs.length > 0) {
-            const last = { ...msgs[msgs.length - 1] }
-            last.description += token
-            msgs[msgs.length - 1] = last
-          }
-          return { ...prev, coachMessages: msgs }
-        })
+        // Tokens are streamed JSON — don't show raw text to user.
+        // The final parsed result arrives via COACHING_MESSAGE.
         break
       }
       case 'coach:thinking': {
-        setState(prev => ({ ...prev, coachMessages: [...prev.coachMessages, {
-          id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          type: 'tip', title: 'Analisando...', description: '', timestamp: Date.now(),
-        }] }))
+        // Don't create visible card — just set a "thinking" flag via SPIN phase
         break
       }
       case 'coach:done': break
