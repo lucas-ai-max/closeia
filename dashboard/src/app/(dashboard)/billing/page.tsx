@@ -67,7 +67,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
   {
     slug: 'TEAM',
     name: 'Team',
-    price: 'R$ 1.797',
+    price: 'R$ 1.997',
     period: '/mês',
     description: 'Para times maiores com visibilidade completa.',
     features: [

@@ -214,7 +214,7 @@ const PLANS = [
   {
     id: 'team',
     name: 'Team',
-    price: 'R$ 1.797',
+    price: 'R$ 1.997',
     period: '/mês',
     description: 'Para times maiores com visibilidade total em tempo real.',
     features: [
