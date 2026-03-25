@@ -77,7 +77,7 @@ export interface CallInfo {
 }
 
 // ─── Tabs ───────────────────────────────────────────────────
-export type AdminTab = 'visao-geral' | 'custos' | 'usuarios' | 'organizacoes' | 'chamadas' | 'assinaturas'
+export type AdminTab = 'visao-geral' | 'custos' | 'usuarios' | 'organizacoes' | 'chamadas' | 'assinaturas' | 'afiliados'
 
 export const TABS: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'visao-geral', label: 'Visao Geral', icon: 'dashboard' },
@@ -86,6 +86,7 @@ export const TABS: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'organizacoes', label: 'Organizacoes', icon: 'business' },
     { id: 'chamadas', label: 'Chamadas', icon: 'call' },
     { id: 'assinaturas', label: 'Assinaturas', icon: 'credit_card' },
+    { id: 'afiliados', label: 'Afiliados', icon: 'handshake' },
 ]
 
 // ─── Formatters ─────────────────────────────────────────────

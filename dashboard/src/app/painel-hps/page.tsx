@@ -9,6 +9,7 @@ import TabUsuarios from './_components/tab-usuarios'
 import TabOrganizacoes from './_components/tab-organizacoes'
 import TabChamadas from './_components/tab-chamadas'
 import TabAssinaturas from './_components/tab-assinaturas'
+import TabAfiliados from './_components/tab-afiliados'
 
 export default function AdminPage() {
     const supabase = createClient()
@@ -176,6 +177,7 @@ export default function AdminPage() {
             {activeTab === 'organizacoes' && <TabOrganizacoes key={`or-${envMode}`} envMode={envMode} />}
             {activeTab === 'chamadas' && <TabChamadas key={`ch-${envMode}`} envMode={envMode} />}
             {activeTab === 'assinaturas' && <TabAssinaturas key={`as-${envMode}`} envMode={envMode} />}
+            {activeTab === 'afiliados' && <TabAfiliados key="af" />}
         </div>
     )
 }

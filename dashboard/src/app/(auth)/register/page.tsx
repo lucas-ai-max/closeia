@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -9,6 +9,14 @@ import { toast } from 'sonner'
 const NEON_PINK = '#ff007a'
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  )
+}
+
+function RegisterForm() {
   const [name, setName] = useState('')
   const [orgName, setOrgName] = useState('')
   const [orgDocument, setOrgDocument] = useState('')
