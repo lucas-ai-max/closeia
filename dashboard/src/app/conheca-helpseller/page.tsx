@@ -8,7 +8,7 @@ export default function ConhecaHelpSeller() {
       {/* Navbar */}
       <nav className="w-full px-6 py-5 flex items-center justify-between max-w-6xl mx-auto">
         <Link href="/" className="text-2xl font-bold tracking-tight">
-          <span className="text-[#ff007a]">Help</span>Seller
+          <span className="text-[#ff007a]">Help</span>Closer
         </Link>
         <Link
           href="/register"
@@ -37,7 +37,7 @@ export default function ConhecaHelpSeller() {
             <div className="relative aspect-video w-full rounded-2xl overflow-hidden shadow-2xl shadow-[#ff007a]/10 border border-white/5">
               <iframe
                 src="https://www.youtube.com/embed/cQSiPgGD30w"
-                title="HelpSeller Demo"
+                title="HelpCloser Demo"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
                 className="absolute inset-0 w-full h-full"
@@ -66,7 +66,7 @@ export default function ConhecaHelpSeller() {
       {/* Footer */}
       <footer className="w-full px-6 py-8 border-t border-white/5">
         <p className="text-center text-sm text-[#666]">
-          &copy; 2026 HelpSeller &middot; helpseller.app
+          &copy; 2026 HelpCloser &middot; helpseller.app
         </p>
       </footer>
     </div>

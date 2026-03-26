@@ -13,7 +13,7 @@ function ActiveSessionBanner() {
   const pathname = usePathname()
 
   useEffect(() => {
-    const check = () => setActive(localStorage.getItem('helpseller_session_active') === '1')
+    const check = () => setActive(localStorage.getItem('helpcloser_session_active') === '1')
     check()
     const interval = setInterval(check, 1000)
     window.addEventListener('storage', check)

@@ -155,7 +155,7 @@ const TESTIMONIALS = [
     location: 'São Paulo',
   },
   {
-    quote: 'Testei o Gong e o Aircover. Os dois são caros demais pro nosso tamanho e em inglês. O HelpSeller faz tudo que preciso, em português, a um décimo do preço.',
+    quote: 'Testei o Gong e o Aircover. Os dois são caros demais pro nosso tamanho e em inglês. O HelpCloser faz tudo que preciso, em português, a um décimo do preço.',
     name: 'Ana M.',
     role: 'Diretora Comercial, Scale-up',
     location: 'BH',
@@ -249,7 +249,7 @@ const PLANS = [
       'Gerente de conta exclusivo',
     ],
     ctaText: 'Falar com vendas',
-    ctaLink: 'https://wa.me/5511999999999?text=Quero%20conhecer%20o%20plano%20Enterprise%20do%20HelpSeller',
+    ctaLink: 'https://wa.me/5511999999999?text=Quero%20conhecer%20o%20plano%20Enterprise%20do%20HelpCloser',
     isExternal: true,
   },
 ] as { id: string; name: string; price: string; period?: string; description: string; popular?: boolean; trial?: string; features: string[]; extra?: string; ctaText: string; ctaLink: string; isExternal?: boolean }[]
@@ -371,7 +371,7 @@ export default function LandingPage() {
       >
         <Container className="flex items-center justify-between h-[72px]">
           <Link href="/" className="group flex items-center font-medium text-lg z-50">
-            <img src="/logo.svg" alt="HelpSeller" className="h-8 sm:h-12 w-auto transition-transform group-hover:scale-105" />
+            <img src="/logo-closer-white.png" alt="HelpCloser" className="h-8 sm:h-12 w-auto transition-transform group-hover:scale-105" />
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-[15px] font-medium text-gray-400">
             <a href="#features" className="hover:text-white transition-colors">Recursos</a>
@@ -460,7 +460,7 @@ export default function LandingPage() {
                 <div className="w-3 h-3 rounded-full bg-[#292929]" />
                 <div className="w-3 h-3 rounded-full bg-[#292929]" />
               </div>
-              <span className="mx-auto text-xs font-mono text-gray-500">Chamada ao vivo • HelpSeller</span>
+              <span className="mx-auto text-xs font-mono text-gray-500">Chamada ao vivo • HelpCloser</span>
             </div>
             <div className="p-4 space-y-3 bg-[#111216]/50">
               <div className="flex items-start gap-3">
@@ -625,7 +625,7 @@ export default function LandingPage() {
                 Colabore com sua <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">IA de vendas</span>
               </h2>
               <p className="text-lg text-gray-500 mb-8 leading-relaxed max-w-lg">
-                O HelpSeller não só escuta; entende o contexto. Sugere respostas na hora, trata objeções e desbloqueia seu time em tempo real.
+                O HelpCloser não só escuta; entende o contexto. Sugere respostas na hora, trata objeções e desbloqueia seu time em tempo real.
               </p>
               <Link href="/register" className="inline-flex items-center gap-2 h-11 px-6 rounded-full border border-white/10 bg-white/2 hover:bg-white/5 hover:border-white/20 text-white text-sm font-medium transition-all">
                 Começar agora <ChevronRight className="w-4 h-4" />
@@ -640,7 +640,7 @@ export default function LandingPage() {
                     <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
                     <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
                   </div>
-                  <span className="text-[10px] font-mono text-gray-500">HelpSeller • Chamada</span>
+                  <span className="text-[10px] font-mono text-gray-500">HelpCloser • Chamada</span>
                 </div>
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-8 h-8 rounded-full bg-linear-to-br from-neon-pink to-neon-blue/80 flex items-center justify-center shrink-0 shadow-lg shadow-neon-pink/20">
@@ -761,7 +761,7 @@ export default function LandingPage() {
           </div>
           <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16 px-2">
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-semibold text-white mb-4 tracking-tight">
-              Por que usar o <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">HelpSeller</span>?
+              Por que usar o <span className="text-transparent bg-clip-text bg-linear-to-r from-neon-pink to-neon-blue">HelpCloser</span>?
             </h2>
             <p className="text-lg text-gray-500 leading-relaxed">
               Menos treinamento genérico, mais resultado na ponta. Seu time vende melhor e você acompanha tudo.
@@ -902,7 +902,7 @@ export default function LandingPage() {
               Perguntas frequentes
             </h2>
             <p className="text-lg text-gray-500 max-w-xl mx-auto">
-              Tudo o que você precisa saber sobre o HelpSeller e os planos.
+              Tudo o que você precisa saber sobre o HelpCloser e os planos.
             </p>
           </div>
           <div className="max-w-3xl mx-auto divide-y divide-[#2A2A2A] border-y border-[#2A2A2A]">
@@ -972,7 +972,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-6 gap-8 sm:gap-10 mb-12 sm:mb-16">
             <div className="col-span-2 md:col-span-2">
               <Link href="/" className="flex items-center text-white font-medium mb-6 text-lg">
-                <img src="/logo.svg" alt="HelpSeller" className="h-8 sm:h-12 w-auto" />
+                <img src="/logo-closer-white.png" alt="HelpCloser" className="h-8 sm:h-12 w-auto" />
               </Link>
               <p className="text-sm text-gray-500 max-w-xs">Coaching de vendas com IA em tempo real. O único produto feito para times brasileiros que querem fechar mais.</p>
             </div>
@@ -1005,7 +1005,7 @@ export default function LandingPage() {
           </div>
           <div className="pt-8 border-t border-[#2A2A2A] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-gray-500">
             <div>
-              <p>© {new Date().getFullYear()} HelpSeller. Todos os direitos reservados.</p>
+              <p>© {new Date().getFullYear()} HelpCloser. Todos os direitos reservados.</p>
               <p className="mt-1">CNPJ: 53.979.090/0001-70</p>
             </div>
             <div className="flex items-center gap-4">

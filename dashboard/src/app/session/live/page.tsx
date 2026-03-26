@@ -5,7 +5,7 @@ import { Zap, Lightbulb, ShoppingCart, AlertTriangle, Sparkles, X, MessageSquare
 import type { CoachMessage, TranscriptChunk, WebSessionState, CallResult } from '@/hooks/use-web-session'
 
 const NEON_PINK = '#ff007a'
-const BROADCAST_CHANNEL = 'helpseller-session'
+const BROADCAST_CHANNEL = 'helpcloser-session'
 
 const SPIN_PHASES: Record<string, { label: string }> = {
   S: { label: 'Situação' },
@@ -61,7 +61,7 @@ export default function SessionLivePopup() {
       <div className="flex flex-col items-center justify-center h-screen p-6 text-center">
         <div className="w-10 h-10 rounded-full border-2 border-white/10 border-t-pink-500 animate-spin mb-4" />
         <p className="text-sm text-gray-400">Aguardando sessão...</p>
-        <p className="text-xs text-gray-600 mt-1">Inicie a sessão na aba do HelpSeller</p>
+        <p className="text-xs text-gray-600 mt-1">Inicie a sessão na aba do HelpCloser</p>
       </div>
     )
   }
@@ -126,7 +126,7 @@ export default function SessionLivePopup() {
             {state.micAvailable ? 'mic' : 'mic_off'}
           </span>
         </div>
-        <img src="/logo.svg" alt="" className="h-4 opacity-50" />
+        <img src="/logo-closer-white.png" alt="" className="h-4 opacity-50" />
       </div>
 
       {/* SPIN */}

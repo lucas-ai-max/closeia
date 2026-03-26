@@ -19,7 +19,7 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="logo"]',
-    title: 'Bem-vindo ao HelpSeller!',
+    title: 'Bem-vindo ao HelpCloser!',
     description: 'Seu coach de vendas com IA em tempo real. Vamos fazer um tour rápido pelas funcionalidades da plataforma.',
     route: '/dashboard',
     position: 'right',
@@ -90,13 +90,13 @@ const TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="logo"]',
     title: 'Pronto para começar!',
-    description: 'Você já conhece as funcionalidades do HelpSeller. Comece criando um Coach em "Coaches" e inicie sua primeira sessão em "Sessão". Boas vendas!',
+    description: 'Você já conhece as funcionalidades do HelpCloser. Comece criando um Coach em "Coaches" e inicie sua primeira sessão em "Sessão". Boas vendas!',
     route: '/dashboard',
     position: 'right',
   },
 ]
 
-const STORAGE_KEY = 'helpseller-tour-completed'
+const STORAGE_KEY = 'helpcloser-tour-completed'
 
 export function ProductTour() {
   const [isActive, setIsActive] = useState(false)

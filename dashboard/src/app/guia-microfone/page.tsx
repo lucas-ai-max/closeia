@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Como ativar o microfone - HelpSeller',
+  title: 'Como ativar o microfone - HelpCloser',
 };
 
 const steps = [
@@ -18,12 +18,12 @@ const steps = [
   {
     number: 3,
     title: 'Permita o acesso ao microfone',
-    description: 'Certifique-se de que a opção "Os sites podem pedir para usar seu microfone" está ativada. Se o HelpSeller aparecer na lista de bloqueados, clique na lixeira ao lado para removê-lo.',
+    description: 'Certifique-se de que a opção "Os sites podem pedir para usar seu microfone" está ativada. Se o HelpCloser aparecer na lista de bloqueados, clique na lixeira ao lado para removê-lo.',
   },
   {
     number: 4,
-    title: 'Permita na extensão HelpSeller',
-    description: 'Com uma reunião aberta no Google Meet ou Zoom, clique no ícone do HelpSeller na barra de extensões. Ao iniciar a gravação pela primeira vez, o navegador pedirá permissão - clique em "Permitir".',
+    title: 'Permita na extensão HelpCloser',
+    description: 'Com uma reunião aberta no Google Meet ou Zoom, clique no ícone do HelpCloser na barra de extensões. Ao iniciar a gravação pela primeira vez, o navegador pedirá permissão - clique em "Permitir".',
   },
   {
     number: 5,
@@ -47,7 +47,7 @@ export default function GuiaMicrofonePage() {
           </div>
           <h1 className="text-2xl font-bold mb-3">Como ativar o microfone</h1>
           <p className="text-[#a3a3a3] text-sm leading-relaxed max-w-md mx-auto">
-            Siga os passos abaixo para permitir que o HelpSeller acesse seu microfone e transcreva suas falas em tempo real.
+            Siga os passos abaixo para permitir que o HelpCloser acesse seu microfone e transcreva suas falas em tempo real.
           </p>
         </div>
 

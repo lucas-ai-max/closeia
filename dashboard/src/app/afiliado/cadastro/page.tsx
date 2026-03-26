@@ -68,7 +68,7 @@ export default function AffiliateCadastroPage() {
       {/* Navbar */}
       <nav className="w-full px-6 py-5 flex items-center justify-between max-w-6xl mx-auto">
         <Link href="/" className="text-2xl font-bold tracking-tight">
-          <span className="text-[#ff007a]">Help</span>Seller
+          <span className="text-[#ff007a]">Help</span>Closer
         </Link>
         <Link
           href="/login"
@@ -83,7 +83,7 @@ export default function AffiliateCadastroPage() {
           {/* Hero */}
           <div className="text-center mb-16">
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight tracking-tight mb-4">
-              Programa de Afiliados <span className="text-[#ff007a]">HelpSeller</span>
+              Programa de Afiliados <span className="text-[#ff007a]">HelpCloser</span>
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-[#999] max-w-2xl mx-auto leading-relaxed">
               Indique clientes, ganhe comissoes de 20% em cada assinatura.
@@ -229,7 +229,7 @@ export default function AffiliateCadastroPage() {
       {/* Footer */}
       <footer className="w-full px-6 py-8 border-t border-white/5">
         <p className="text-center text-sm text-[#666]">
-          &copy; 2026 HelpSeller &middot; helpseller.app
+          &copy; 2026 HelpCloser &middot; helpseller.app
         </p>
       </footer>
     </div>

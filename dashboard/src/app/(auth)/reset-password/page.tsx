@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
           }}
         >
           <div className="flex items-center mb-8">
-            <img src="/logo.svg" alt="HelpSeller" className="h-10 w-auto" />
+            <img src="/logo-closer-white.png" alt="HelpCloser" className="h-10 w-auto" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">
             Nova senha

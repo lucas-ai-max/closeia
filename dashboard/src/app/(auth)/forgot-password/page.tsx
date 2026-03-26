@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
           }}
         >
           <div className="flex items-center mb-8">
-            <img src="/logo.svg" alt="HelpSeller" className="h-10 w-auto" />
+            <img src="/logo-closer-white.png" alt="HelpCloser" className="h-10 w-auto" />
           </div>
 
           {sent ? (

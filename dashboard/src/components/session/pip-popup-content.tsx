@@ -109,7 +109,7 @@ export function PipPopupContent({ state, onDismiss, onStop }: Props) {
             )}
           </svg>
         </div>
-        <span style={{ fontSize: 11, color: '#444', fontWeight: 600 }}>HelpSeller</span>
+        <span style={{ fontSize: 11, color: '#444', fontWeight: 600 }}>HelpCloser</span>
       </div>
 
       {/* SPIN */}

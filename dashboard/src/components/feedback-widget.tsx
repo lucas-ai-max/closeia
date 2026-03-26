@@ -88,7 +88,7 @@ export function FeedbackWidget() {
                   <span className="material-icons-outlined text-3xl text-emerald-400">check_circle</span>
                 </div>
                 <p className="text-white font-semibold">Obrigado pelo feedback!</p>
-                <p className="text-gray-500 text-sm mt-1">Vamos analisar e usar para melhorar o HelpSeller.</p>
+                <p className="text-gray-500 text-sm mt-1">Vamos analisar e usar para melhorar o HelpCloser.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="p-4 space-y-4">

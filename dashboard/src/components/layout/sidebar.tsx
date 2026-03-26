@@ -108,7 +108,7 @@ export function Sidebar() {
       style={{ borderColor: 'rgba(255,255,255,0.05)' }}
     >
       <div className="p-8 flex items-center" suppressHydrationWarning={true}>
-        <img src="/logo.svg" alt="HelpSeller" className="h-8 w-auto" data-tour="logo" />
+        <img src="/logo-closer-white.png" alt="HelpCloser" className="h-8 w-auto" data-tour="logo" />
       </div>
 
       {/* Navigation: render skeleton or real content based on mounted state */}

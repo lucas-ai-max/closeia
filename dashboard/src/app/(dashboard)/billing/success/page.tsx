@@ -117,8 +117,8 @@ export default function BillingSuccessPage() {
       <h1 className="text-3xl font-bold text-white mb-3">Assinatura ativada!</h1>
       <p className="text-gray-400 max-w-md mb-8">
         {planName
-          ? `Seu plano ${planName} está ativo. Aproveite todos os recursos do HelpSeller.`
-          : 'Seu pagamento foi confirmado e o plano já está ativo. Aproveite todos os recursos do HelpSeller.'
+          ? `Seu plano ${planName} está ativo. Aproveite todos os recursos do HelpCloser.`
+          : 'Seu pagamento foi confirmado e o plano já está ativo. Aproveite todos os recursos do HelpCloser.'
         }
       </p>
       <div className="flex flex-col sm:flex-row gap-4">

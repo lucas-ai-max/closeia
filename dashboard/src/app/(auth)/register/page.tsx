@@ -34,7 +34,7 @@ function RegisterForm() {
   useEffect(() => {
     const ref = searchParams.get('ref')
     if (ref) {
-      localStorage.setItem('helpseller_ref', ref.toUpperCase().trim())
+      localStorage.setItem('helpcloser_ref', ref.toUpperCase().trim())
     }
   }, [searchParams])
 
@@ -88,7 +88,7 @@ function RegisterForm() {
           organization_phone: orgPhone.trim() || null,
           organization_email: orgEmail.trim() || null,
           organization_address: orgAddress.trim() || null,
-          referral_code: localStorage.getItem('helpseller_ref') || null,
+          referral_code: localStorage.getItem('helpcloser_ref') || null,
         },
       },
     })
@@ -142,13 +142,13 @@ function RegisterForm() {
               }}
             >
               <div className="flex items-center mb-8">
-                <img src="/logo.svg" alt="HelpSeller" className="h-10 w-auto" />
+                <img src="/logo-closer-white.png" alt="HelpCloser" className="h-10 w-auto" />
               </div>
               <h1 className="text-2xl font-bold text-white mb-1">
                 Criar conta
               </h1>
               <p className="text-gray-500 text-sm mb-8">
-                Comece a usar o HelpSeller agora
+                Comece a usar o HelpCloser agora
               </p>
               <form className="space-y-4" onSubmit={handleRegister}>
                 <div>

@@ -76,7 +76,8 @@ export async function middleware(request: NextRequest) {
             pathname.startsWith('/terms') ||
             pathname.startsWith('/billing/success') ||
             pathname.startsWith('/billing/cancel') ||
-            pathname.startsWith('/conheca-helpseller')
+            pathname.startsWith('/conheca-helpseller') ||
+            pathname.startsWith('/afiliado/cadastro')
 
         if (!isPublic && !session) {
             return NextResponse.redirect(new URL('/login', request.url))

@@ -90,7 +90,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
     period: '',
     description: 'Plano 100% adaptado à sua operação.',
     isContact: true,
-    contactUrl: 'https://wa.me/5511999999999?text=Quero%20conhecer%20o%20plano%20Enterprise%20do%20HelpSeller',
+    contactUrl: 'https://wa.me/5511999999999?text=Quero%20conhecer%20o%20plano%20Enterprise%20do%20HelpCloser',
     features: [
       'Vendedores ilimitados',
       'Horas de calls sob demanda',

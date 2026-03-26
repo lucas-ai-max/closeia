@@ -85,7 +85,7 @@ export default function SessionPage() {
     const top = window.screenY + 80
     const popup = window.open(
       `/session/live`,
-      'helpseller-session',
+      'helpcloser-session',
       `popup=yes,width=${PIP_WIDTH},height=${PIP_HEIGHT},left=${left},top=${top},resizable=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no`
     )
     fallbackPopupRef.current = popup

@@ -51,7 +51,7 @@ export interface WebSessionState {
 }
 
 const MAX_RECORDING_CHUNKS = 3600
-const BROADCAST_CHANNEL = 'helpseller-session'
+const BROADCAST_CHANNEL = 'helpcloser-session'
 
 // --- Hook ---
 
@@ -163,7 +163,7 @@ export function useWebSession() {
         const callId = data.payload?.callId as string
         callIdRef.current = callId
         setState(prev => ({ ...prev, callId, status: 'active' }))
-        try { localStorage.setItem('helpseller_session_active', '1') } catch {}
+        try { localStorage.setItem('helpcloser_session_active', '1') } catch {}
         flushQueue()
         // Start video streaming + recording now that callId is confirmed
         if (pendingMediaStartRef.current) {
@@ -602,7 +602,7 @@ export function useWebSession() {
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(1000, 'Session ended'); wsRef.current = null }
 
     setState(prev => ({ ...prev, status: 'ended', isStreaming: false }))
-    try { localStorage.removeItem('helpseller_session_active') } catch {}
+    try { localStorage.removeItem('helpcloser_session_active') } catch {}
   }, [wsSend, uploadRecording])
 
   stopRef.current = stop
@@ -650,7 +650,7 @@ export function useWebSession() {
     window.addEventListener('beforeunload', handler)
     return () => {
       window.removeEventListener('beforeunload', handler)
-      try { localStorage.removeItem('helpseller_session_active') } catch {}
+      try { localStorage.removeItem('helpcloser_session_active') } catch {}
     }
   }, [])
 

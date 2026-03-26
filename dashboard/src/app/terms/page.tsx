@@ -18,7 +18,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">1. Aceitacao dos Termos</h2>
             <p>
-              Ao acessar ou utilizar a plataforma HelpSeller, operada pela empresa inscrita no CNPJ 53.979.090/0001-70,
+              Ao acessar ou utilizar a plataforma HelpCloser, operada pela empresa inscrita no CNPJ 53.979.090/0001-70,
               voce concorda em cumprir e estar vinculado a estes Termos de Uso. Caso nao concorde com algum dos termos,
               nao utilize nossos servicos.
             </p>
@@ -27,7 +27,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">2. Descricao do Servico</h2>
             <p>
-              O HelpSeller e uma plataforma SaaS de coaching de vendas com inteligencia artificial que oferece:
+              O HelpCloser e uma plataforma SaaS de coaching de vendas com inteligencia artificial que oferece:
             </p>
             <ul className="list-disc pl-6 space-y-2 mt-3">
               <li>Coaching em tempo real durante chamadas de vendas via extensao do navegador.</li>
@@ -75,7 +75,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">6. Propriedade Intelectual</h2>
             <p>
-              Todo o conteudo, codigo, design, marcas e tecnologia do HelpSeller sao de propriedade exclusiva da Empresa.
+              Todo o conteudo, codigo, design, marcas e tecnologia do HelpCloser sao de propriedade exclusiva da Empresa.
               Voce recebe uma licenca limitada, nao exclusiva e nao transferivel para usar o servico conforme estes termos.
               Os dados gerados por voce (scripts, configuracoes, dados de chamadas) permanecem de sua propriedade.
             </p>
@@ -102,7 +102,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">9. Limitacao de Responsabilidade</h2>
             <p>
-              O HelpSeller e fornecido &quot;como esta&quot;. Nao garantimos que as sugestoes da IA resultarao em
+              O HelpCloser e fornecido &quot;como esta&quot;. Nao garantimos que as sugestoes da IA resultarao em
               fechamento de vendas. Nossa responsabilidade e limitada ao valor pago pelo servico nos ultimos
               12 meses. Nao somos responsaveis por danos indiretos, perda de lucros ou dados decorrentes do
               uso do servico.
@@ -127,7 +127,7 @@ export default function TermsPage() {
           </section>
 
           <div className="pt-8 border-t border-[#2A2A2A] text-sm text-gray-500">
-            <p>HelpSeller — CNPJ: 53.979.090/0001-70</p>
+            <p>HelpCloser — CNPJ: 53.979.090/0001-70</p>
           </div>
         </div>
       </div>

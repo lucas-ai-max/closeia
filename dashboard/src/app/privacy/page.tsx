@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">1. Introducao</h2>
             <p>
-              A HelpSeller (&quot;nos&quot;, &quot;nosso&quot; ou &quot;Empresa&quot;), inscrita no CNPJ 53.979.090/0001-70,
+              A HelpCloser (&quot;nos&quot;, &quot;nosso&quot; ou &quot;Empresa&quot;), inscrita no CNPJ 53.979.090/0001-70,
               esta comprometida em proteger a privacidade dos seus usuarios. Esta Politica de Privacidade descreve como
               coletamos, usamos, armazenamos e protegemos suas informacoes pessoais ao utilizar nossa plataforma de
               coaching de vendas com inteligencia artificial.
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">4. Audio e Transcricoes</h2>
             <p>
-              O HelpSeller utiliza acesso ao microfone para transcrever chamadas de vendas em tempo real.
+              O HelpCloser utiliza acesso ao microfone para transcrever chamadas de vendas em tempo real.
               O audio e processado em tempo real e nao e armazenado permanentemente, a menos que o usuario
               configure explicitamente a gravacao. Transcricoes sao armazenadas de forma criptografada e
               acessiveis apenas pela organizacao do usuario.
@@ -107,7 +107,7 @@ export default function PrivacyPage() {
           </section>
 
           <div className="pt-8 border-t border-[#2A2A2A] text-sm text-gray-500">
-            <p>HelpSeller — CNPJ: 53.979.090/0001-70</p>
+            <p>HelpCloser — CNPJ: 53.979.090/0001-70</p>
           </div>
         </div>
       </div>

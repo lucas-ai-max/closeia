@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Building2, X } from 'lucide-react'
 
-const STORAGE_KEY = 'helpseller_org_banner_dismissed'
+const STORAGE_KEY = 'helpcloser_org_banner_dismissed'
 
 export function OrgCompleteBanner() {
   const [show, setShow] = useState(false)

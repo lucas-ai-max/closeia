@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         price_data: {
           currency: 'brl',
           product_data: {
-            name: `${hours} Horas Extras - HelpSeller`,
+            name: `${hours} Horas Extras - HelpCloser`,
             description: `Pacote de ${hours} horas extras de coaching (${plan})`,
           },
           unit_amount: pricePerHour,
