@@ -77,13 +77,14 @@ export async function GET() {
     const plan = ((org as { plan?: string } | null)?.plan ?? 'FREE') as PlanSlug;
     const planLimits = getPlanLimits(plan);
 
-    // Count active sellers in the organization
+    // Count all active team members (excluding the current user/owner)
+    // This prevents the exploit of promoting SELLERs to MANAGER to bypass limits
     const { count: sellerCount } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
       .eq('organization_id', organizationId)
-      .eq('role', 'SELLER')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .neq('id', user.id);
 
     const currentSellers = sellerCount ?? 0;
 

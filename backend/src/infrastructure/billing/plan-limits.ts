@@ -402,13 +402,32 @@ export async function checkSellerLimit(organizationId: string | null): Promise<{
       };
     }
 
-    // Count current sellers
-    const { count, error: countError } = await supabaseAdmin
+    // Count all active team members EXCLUDING the org owner (oldest manager).
+    // This prevents the exploit of promoting SELLERs to MANAGER to bypass limits.
+    // We count everyone except the first MANAGER created (the org owner).
+    const { data: ownerRow } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('role', 'MANAGER')
+      .eq('is_active', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+
+    const ownerId = ownerRow?.id;
+
+    let countQuery = supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true })
       .eq('organization_id', organizationId)
-      .eq('role', 'SELLER')
       .eq('is_active', true);
+
+    if (ownerId) {
+      countQuery = countQuery.neq('id', ownerId);
+    }
+
+    const { count, error: countError } = await countQuery;
 
     if (countError) {
       logger.error({ organizationId, error: countError }, '[PLAN_LIMITS] Failed to count sellers — denying');
