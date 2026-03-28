@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /** Desativa falha do build por erros de ESLint até os avisos serem corrigidos. */
   eslint: { ignoreDuringBuilds: true },
 
+  /** Security headers - proteção contra clickjacking, XSS, MIME sniffing */
   async headers() {
     return [
       {
