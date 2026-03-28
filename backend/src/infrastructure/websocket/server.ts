@@ -1691,6 +1691,21 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             }
                         }
 
+                        // Verify call exists and is active
+                        const { data: callCheck } = await supabaseAdmin
+                            .from('calls')
+                            .select('status')
+                            .eq('id', callId)
+                            .single();
+
+                        if (!callCheck || callCheck.status !== 'ACTIVE') {
+                            socket.send(JSON.stringify({
+                                type: 'error',
+                                payload: { code: 'CALL_NOT_ACTIVE', message: 'Call is not active' }
+                            }));
+                            break;
+                        }
+
                         // Subscribe to new call's transcript stream
                         subscribedCallId = callId;
                         let set = managerSocketsByCallId.get(callId);
@@ -1710,21 +1725,30 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             }));
                         };
 
-                        await redis.subscribe(`call:${subscribedCallId}:stream`, streamHandler);
+                        try {
+                            await redis.subscribe(`call:${subscribedCallId}:stream`, streamHandler);
+                        } catch (subErr) {
+                            logger.error({ error: subErr }, '[LIVE_DEBUG] Failed to subscribe to stream');
+                            socket.send(JSON.stringify({ type: 'error', payload: { code: 'SUBSCRIPTION_FAILED', message: 'Failed to subscribe to call stream' } }));
+                        }
 
-                        // NEW: Subscribe to media stream (video + audio) — send binary to avoid base64 encoding issues
+                        // Subscribe to media stream (video + audio) — send binary to avoid base64 encoding issues
                         mediaHandler = (mediaData: any) => {
                             if (socket.readyState !== WebSocket.OPEN) return;
                             const binaryMsg = encodeMediaChunkToBinary(mediaData);
                             if (binaryMsg) socket.send(binaryMsg);
                         };
 
-                        await redis.subscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
+                        try {
+                            await redis.subscribe(`call:${subscribedCallId}:media_raw`, mediaHandler);
+                        } catch (subErr) {
+                            logger.error({ error: subErr }, '[LIVE_DEBUG] Failed to subscribe to media');
+                            socket.send(JSON.stringify({ type: 'error', payload: { code: 'SUBSCRIPTION_FAILED', message: 'Failed to subscribe to media stream' } }));
+                        }
 
-                        // NEW: Subscribe to live summary
+                        // Subscribe to live summary
                         liveSummaryHandler = async (summaryData: any) => {
                             if (socket.readyState !== WebSocket.OPEN) return;
-                            // Send to manager if valid
                             if (summaryData) {
                                 logger.info({ summary: summaryData }, '📊 Broadcasting Live Summary');
                                 socket.send(JSON.stringify({
@@ -1733,7 +1757,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                                 }));
                             }
                         };
-                        await redis.subscribe(`call:${subscribedCallId}:live_summary`, liveSummaryHandler);
+                        try {
+                            await redis.subscribe(`call:${subscribedCallId}:live_summary`, liveSummaryHandler);
+                        } catch (subErr) {
+                            logger.error({ error: subErr }, '[LIVE_DEBUG] Failed to subscribe to live_summary');
+                        }
 
                         // Do NOT send cached media header on manager:join — it can be stale or from a different
                         // codec (vp8 vs vp9), causing intermittent SourceBuffer/Playback errors when mixed with
@@ -1810,8 +1838,27 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             }
         });
 
+        // Heartbeat: ping every 30s, terminate if no pong within 30s
+        let isAlive = true;
+        const pingInterval = setInterval(() => {
+            if (!isAlive) {
+                logger.warn('💓 Manager inactive, terminating connection');
+                socket.terminate();
+                return;
+            }
+            isAlive = false;
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.ping();
+            }
+        }, 30000);
+
+        socket.on('pong', () => {
+            isAlive = true;
+        });
+
         socket.on('close', async (code, reason) => {
             logger.info({ code, reason: reason?.toString() }, '👔 Manager WS Disconnected');
+            clearInterval(pingInterval);
 
             if (subscribedCallId) {
                 const set = managerSocketsByCallId.get(subscribedCallId);
@@ -1835,6 +1882,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
         socket.on('error', (err) => {
             logger.error({ err }, '👔 Manager WS Error');
+            clearInterval(pingInterval);
         });
     });
 }

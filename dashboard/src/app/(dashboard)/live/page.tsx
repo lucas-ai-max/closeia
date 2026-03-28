@@ -212,6 +212,14 @@ export default function LivePage() {
                     return;
                 }
 
+                if (msg.type === 'error') {
+                    console.warn('[LIVE] Server error:', msg.payload);
+                    if (msg.payload?.code === 'CALL_NOT_ACTIVE') {
+                        setWsStatus('disconnected');
+                        return;
+                    }
+                }
+
                 if (msg.type === 'transcript:stream') {
                     setTranscripts(prev => [...prev, msg.payload]);
                 }
