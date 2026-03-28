@@ -119,6 +119,8 @@ export default function SimpleSidebar() {
     const [isMinimized, setIsMinimized] = useState(false);
     const [userScrolledUp, setUserScrolledUp] = useState(false);
     const [transcriptPct, setTranscriptPct] = useState(30); // % of height for transcripts
+    const [fontSizeOffset, setFontSizeOffset] = useState(0);
+    const fs = (base: number) => base + fontSizeOffset;
     const dragRef = useRef({ startX: 0, startY: 0, startLeft: 0, startTop: 0, panelW: SIDEBAR_W, panelH: 300 });
     const transcriptEndRef = useRef<HTMLDivElement>(null);
     const coachFeedRef = useRef<HTMLDivElement>(null);
@@ -483,6 +485,24 @@ export default function SimpleSidebar() {
                     )}
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '2px 4px', borderRadius: RADIUS, border: `1px solid ${BORDER}`, background: 'rgba(255,255,255,0.03)' }}>
+                        <button
+                            onClick={() => setFontSizeOffset(Math.max(-2, fontSizeOffset - 1))}
+                            disabled={fontSizeOffset <= -2}
+                            style={{ padding: 2, background: 'transparent', border: 'none', color: fontSizeOffset <= -2 ? TEXT_MUTED + '40' : TEXT_MUTED, cursor: fontSizeOffset <= -2 ? 'default' : 'pointer', display: 'flex' }}
+                            title="Diminuir fonte"
+                        >
+                            <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>A-</span>
+                        </button>
+                        <button
+                            onClick={() => setFontSizeOffset(Math.min(4, fontSizeOffset + 1))}
+                            disabled={fontSizeOffset >= 4}
+                            style={{ padding: 2, background: 'transparent', border: 'none', color: fontSizeOffset >= 4 ? TEXT_MUTED + '40' : TEXT_MUTED, cursor: fontSizeOffset >= 4 ? 'default' : 'pointer', display: 'flex' }}
+                            title="Aumentar fonte"
+                        >
+                            <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>A+</span>
+                        </button>
+                    </div>
                     <button onClick={toggleMinimize} title="Minimizar" style={{ padding: 4, background: 'transparent', border: `1px solid ${BORDER}`, borderRadius: RADIUS, color: TEXT_SECONDARY, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Minus size={12} />
                     </button>
@@ -497,7 +517,7 @@ export default function SimpleSidebar() {
                         <span>Gestor diz:</span>
                         <button onClick={() => setManagerWhisper(null)} style={{ background: 'none', border: 'none', color: TEXT_MUTED, cursor: 'pointer', padding: 0, display: 'flex' }}><X size={12} /></button>
                     </div>
-                    <div style={{ fontSize: 12, lineHeight: 1.5, color: TEXT }}>{managerWhisper.content}</div>
+                    <div style={{ fontSize: fs(12), lineHeight: 1.5, color: TEXT }}>{managerWhisper.content}</div>
                 </div>
             )}
 
@@ -530,7 +550,7 @@ export default function SimpleSidebar() {
                                     <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.12)', borderBottom: '1px solid rgba(239,68,68,0.3)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <AlertTriangle size={12} style={{ color: '#ef4444' }} />
-                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase' }}>
+                                            <span style={{ fontSize: fs(11), fontWeight: 700, color: '#ef4444', textTransform: 'uppercase' }}>
                                                 Objeção: {item.objection}
                                             </span>
                                         </div>
@@ -541,11 +561,11 @@ export default function SimpleSidebar() {
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <MessageCircle size={13} style={{ color: ACCENT_GREEN, animation: isLatest ? 'pulse 1.5s ease-in-out 3' : 'none' }} />
-                                                <span style={{ fontSize: 11, fontWeight: 800, color: ACCENT_GREEN, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Diga Agora</span>
+                                                <span style={{ fontSize: fs(11), fontWeight: 800, color: ACCENT_GREEN, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Diga Agora</span>
                                             </div>
                                             <CopyButton text={item.suggestedResponse} />
                                         </div>
-                                        <div style={{ fontSize: isLatest ? 14 : 12, fontWeight: 600, lineHeight: 1.5, color: TEXT, wordBreak: 'break-word' }}>
+                                        <div style={{ fontSize: isLatest ? fs(14) : fs(12), fontWeight: 600, lineHeight: 1.5, color: TEXT, wordBreak: 'break-word' }}>
                                             "{item.suggestedResponse}"
                                         </div>
                                     </div>
@@ -555,19 +575,19 @@ export default function SimpleSidebar() {
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <HelpCircle size={12} style={{ color: ACCENT_BLUE }} />
-                                                <span style={{ fontSize: 10, fontWeight: 700, color: ACCENT_BLUE, textTransform: 'uppercase' }}>Pergunte</span>
+                                                <span style={{ fontSize: fs(10), fontWeight: 700, color: ACCENT_BLUE, textTransform: 'uppercase' }}>Pergunte</span>
                                             </div>
                                             <CopyButton text={item.suggestedQuestion} />
                                         </div>
-                                        <div style={{ fontSize: isLatest ? 13 : 12, fontWeight: 500, lineHeight: 1.4, color: TEXT, wordBreak: 'break-word' }}>
+                                        <div style={{ fontSize: isLatest ? fs(13) : fs(12), fontWeight: 500, lineHeight: 1.4, color: TEXT, wordBreak: 'break-word' }}>
                                             "{item.suggestedQuestion}"
                                         </div>
                                     </div>
                                 )}
                                 {!item.suggestedResponse && !item.suggestedQuestion && !item.objection && (
                                     <div style={{ padding: '6px 12px', background: isLatest ? BG_ELEVATED : 'transparent' }}>
-                                        <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: NEON_PINK, textTransform: 'uppercase' }}>Dica</div>
-                                        <div style={{ fontSize: 11, lineHeight: 1.4, color: TEXT_SECONDARY }}>
+                                        <div style={{ fontSize: fs(10), fontWeight: 600, marginBottom: 3, color: NEON_PINK, textTransform: 'uppercase' }}>Dica</div>
+                                        <div style={{ fontSize: fs(11), lineHeight: 1.4, color: TEXT_SECONDARY }}>
                                             {item.tip.split(/(\*\*.*?\*\*)/).map((part, pi) =>
                                                 part.startsWith('**') && part.endsWith('**') ? (
                                                     <strong key={pi} style={{ color: TEXT, fontWeight: 600 }}>{part.slice(2, -2)}</strong>
@@ -658,10 +678,10 @@ export default function SimpleSidebar() {
                                     opacity: t.isFinal ? 1 : 0.7,
                                     transition: 'opacity 0.2s ease',
                                 }}>
-                                    <div style={{ fontSize: 8, fontWeight: 700, color: labelColor, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 1 }}>
+                                    <div style={{ fontSize: fs(8), fontWeight: 700, color: labelColor, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 1 }}>
                                         {isLead ? 'CLIENTE' : 'VOCÊ'}
                                     </div>
-                                    <div style={{ fontSize: 11, lineHeight: 1.45, color: TEXT }}>
+                                    <div style={{ fontSize: fs(11), lineHeight: 1.45, color: TEXT }}>
                                         <TypingText text={t.text} animate={shouldAnimate} cursorColor={labelColor} />
                                     </div>
                                 </div>
