@@ -22,6 +22,8 @@ interface Props {
 
 export function PipPopupContent({ state, onDismiss, onStop }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('coach')
+  const [fontSizeOffset, setFontSizeOffset] = useState(0)
+  const fs = (base: number) => base + fontSizeOffset
   const coachEndRef = useRef<HTMLDivElement>(null)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
 
@@ -109,15 +111,29 @@ export function PipPopupContent({ state, onDismiss, onStop }: Props) {
             )}
           </svg>
         </div>
-        <span style={{ fontSize: 11, color: '#444', fontWeight: 600 }}>HelpCloser</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '2px 4px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+            <button
+              onClick={() => setFontSizeOffset(Math.max(-2, fontSizeOffset - 1))}
+              disabled={fontSizeOffset <= -2}
+              style={{ padding: '0 3px', background: 'none', border: 'none', fontSize: 10, fontWeight: 700, color: fontSizeOffset <= -2 ? '#333' : '#666', cursor: fontSizeOffset <= -2 ? 'default' : 'pointer' }}
+            >A-</button>
+            <button
+              onClick={() => setFontSizeOffset(Math.min(4, fontSizeOffset + 1))}
+              disabled={fontSizeOffset >= 4}
+              style={{ padding: '0 3px', background: 'none', border: 'none', fontSize: 10, fontWeight: 700, color: fontSizeOffset >= 4 ? '#333' : '#666', cursor: fontSizeOffset >= 4 ? 'default' : 'pointer' }}
+            >A+</button>
+          </div>
+          <span style={{ fontSize: 11, color: '#444', fontWeight: 600 }}>HelpCloser</span>
+        </div>
       </div>
 
       {/* SPIN */}
       {state.currentSpinPhase && SPIN_PHASES[state.currentSpinPhase] && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#4b5563' }}>SPIN:{state.currentSpinPhase}</span>
-            <span style={{ fontSize: 11, color: '#9ca3af' }}>{SPIN_PHASES[state.currentSpinPhase].label}</span>
+            <span style={{ fontSize: fs(9), fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#4b5563' }}>SPIN:{state.currentSpinPhase}</span>
+            <span style={{ fontSize: fs(11), color: '#9ca3af' }}>{SPIN_PHASES[state.currentSpinPhase].label}</span>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {['S', 'P', 'I', 'N'].map(p => (
@@ -170,7 +186,7 @@ export function PipPopupContent({ state, onDismiss, onStop }: Props) {
               </div>
             )}
             {activeCoach.map(msg => (
-              <PipCoachCard key={msg.id} msg={msg} onDismiss={onDismiss} />
+              <PipCoachCard key={msg.id} msg={msg} onDismiss={onDismiss} fs={fs} />
             ))}
             <div ref={coachEndRef} />
           </>
@@ -197,10 +213,10 @@ export function PipPopupContent({ state, onDismiss, onStop }: Props) {
                   background: chunk.role === 'seller' ? 'rgba(236,72,153,0.1)' : 'rgba(255,255,255,0.04)',
                   border: `1px solid ${chunk.role === 'seller' ? 'rgba(236,72,153,0.15)' : 'rgba(255,255,255,0.05)'}`,
                 }}>
-                  <p style={{ fontSize: 10, fontWeight: 600, marginBottom: 2, color: chunk.role === 'seller' ? NEON_PINK : '#555' }}>
+                  <p style={{ fontSize: fs(10), fontWeight: 600, marginBottom: 2, color: chunk.role === 'seller' ? NEON_PINK : '#555' }}>
                     {chunk.speaker}
                   </p>
-                  <p style={{ fontSize: 12, color: '#d1d5db', lineHeight: 1.5 }}>{chunk.text}</p>
+                  <p style={{ fontSize: fs(12), color: '#d1d5db', lineHeight: 1.5 }}>{chunk.text}</p>
                 </div>
               </div>
             ))}
@@ -287,7 +303,7 @@ const IconPhone = () => (
   </svg>
 )
 
-function PipCoachCard({ msg, onDismiss }: { msg: CoachMessage; onDismiss: (id: string) => void }) {
+function PipCoachCard({ msg, onDismiss, fs }: { msg: CoachMessage; onDismiss: (id: string) => void; fs: (base: number) => number }) {
   const getIcon = () => {
     if (msg.type === 'manager-whisper' || msg.metadata?.source === 'manager') return <IconMsg />
     switch (msg.type) {
@@ -305,30 +321,30 @@ function PipCoachCard({ msg, onDismiss }: { msg: CoachMessage; onDismiss: (id: s
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
           {getIcon()}
-          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#4b5563' }}>{label}</span>
+          <span style={{ fontSize: fs(9), fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#4b5563' }}>{label}</span>
         </div>
         <button onClick={() => onDismiss(msg.id)} style={{ background: 'none', border: 'none', padding: 2, color: '#374151', cursor: 'pointer' }}><IconX /></button>
       </div>
       {msg.title && (
-        <h4 style={{ fontWeight: 500, fontSize: 12, color: 'white', lineHeight: 1.3 }}>{msg.title}</h4>
+        <h4 style={{ fontWeight: 500, fontSize: fs(12), color: 'white', lineHeight: 1.3 }}>{msg.title}</h4>
       )}
       {msg.description && (
-        <p style={{ fontSize: 11, color: msg.title ? '#9ca3af' : 'white', lineHeight: 1.5, marginTop: msg.title ? 2 : 0 }}>{msg.description}</p>
+        <p style={{ fontSize: fs(11), color: msg.title ? '#9ca3af' : 'white', lineHeight: 1.5, marginTop: msg.title ? 2 : 0 }}>{msg.description}</p>
       )}
       {msg.type === 'objection' && msg.metadata?.objection ? (
-        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#9ca3af', background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '4px 8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, fontSize: fs(10), color: '#9ca3af', background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '4px 8px', border: '1px solid rgba(255,255,255,0.05)' }}>
           <IconTarget />
           <span style={{ color: '#6b7280' }}>Objeção:</span> {String(msg.metadata.objection)}
         </div>
       ) : null}
       {msg.metadata?.suggested_response ? (
-        <div style={{ marginTop: 6, fontSize: 10, background: 'rgba(34,197,94,0.08)', borderRadius: 4, padding: '4px 8px', border: '1px solid rgba(34,197,94,0.2)' }}>
+        <div style={{ marginTop: 6, fontSize: fs(10), background: 'rgba(34,197,94,0.08)', borderRadius: 4, padding: '4px 8px', border: '1px solid rgba(34,197,94,0.2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, fontWeight: 600, color: '#4ade80' }}><IconMsg color="#4ade80" /> Resposta</div>
           <p style={{ color: '#d1d5db', lineHeight: 1.5 }}>{String(msg.metadata.suggested_response)}</p>
         </div>
       ) : null}
       {msg.metadata?.suggested_question ? (
-        <div style={{ marginTop: 6, fontSize: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 4, padding: '4px 8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ marginTop: 6, fontSize: fs(10), background: 'rgba(255,255,255,0.03)', borderRadius: 4, padding: '4px 8px', border: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, fontWeight: 600, color: '#6b7280' }}><IconBulb color="#6b7280" /> Pergunta</div>
           <p style={{ color: '#d1d5db', lineHeight: 1.5, fontWeight: 500 }}>{String(msg.metadata.suggested_question)}</p>
         </div>

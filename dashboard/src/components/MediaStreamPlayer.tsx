@@ -19,13 +19,24 @@ const LIVE_EDGE_SEEK_INTERVAL_MS = 2000;
 /** Only remove old buffer when we have at least this many seconds ahead (avoids DEMUXER_UNDERFLOW). */
 const MIN_BUFFER_AHEAD_BEFORE_TRIM_SEC = 10;
 
-/** Check if bytes look like a WebM init segment (EBML header). Relaxed: trusts backend isHeader flag. */
+/** Check if bytes are large enough to be a valid init segment */
 function isLikelyInitSegment(bytes: Uint8Array): boolean {
-    // Must have some minimum size to be a valid init segment
-    if (bytes.length < 10) return false;
-    // Optionally check EBML magic (0x1A 0x45 0xDF 0xA3) but don't require it
-    // because the backend is authoritative about what is a header
-    return true;
+    return bytes.length >= 10;
+}
+
+/** Detect codec from WebM init segment by searching for codec IDs in the binary */
+function detectCodecFromInit(bytes: Uint8Array): string {
+    const str = new TextDecoder('ascii', { fatal: false }).decode(bytes);
+    if (str.includes('V_VP9')) return 'vp9';
+    if (str.includes('V_VP8')) return 'vp8';
+    // Fallback: check for binary codec ID patterns
+    for (let i = 0; i < bytes.length - 4; i++) {
+        // VP9 codec ID: 0x56 0x5F 0x56 0x50 0x39
+        if (bytes[i] === 0x56 && bytes[i+1] === 0x5F && bytes[i+2] === 0x56 && bytes[i+3] === 0x50 && bytes[i+4] === 0x39) return 'vp9';
+        // VP8 codec ID: 0x56 0x5F 0x56 0x50 0x38
+        if (bytes[i] === 0x56 && bytes[i+1] === 0x5F && bytes[i+2] === 0x56 && bytes[i+3] === 0x50 && bytes[i+4] === 0x38) return 'vp8';
+    }
+    return 'vp8'; // default to vp8
 }
 
 /** Binary frame from backend: 1 byte flag (0x01=header, 0x00=data) + chunk bytes. */
@@ -105,8 +116,35 @@ export function MediaStreamPlayer({ callId, wsUrl, token }: MediaStreamPlayerPro
             }
 
             if (isHeader) {
+                // Detect codec from init segment and check if SourceBuffer matches
+                const detectedCodec = detectCodecFromInit(bytes);
+                const currentMime = sourceBuffer.mimeType || '';
+                const needsSwitch = (detectedCodec === 'vp8' && currentMime.includes('vp9')) ||
+                                    (detectedCodec === 'vp9' && currentMime.includes('vp8'));
+                if (needsSwitch && mediaSource.readyState === 'open') {
+                    const newMime = `video/webm;codecs=${detectedCodec},opus`;
+                    console.log('[LIVE_DEBUG] Codec mismatch! Switching from', currentMime, 'to', newMime);
+                    try {
+                        mediaSource.removeSourceBuffer(sourceBuffer);
+                        const newSB = mediaSource.addSourceBuffer(newMime);
+                        sourceBufferRef.current = newSB;
+                        newSB.mode = 'segments';
+                        newSB.addEventListener('updateend', () => processQueue());
+                        newSB.addEventListener('error', () => {
+                            sourceBufferDeadRef.current = true;
+                            sourceBufferRef.current = null;
+                            setError('Playback error');
+                        });
+                        hasAppendedInitRef.current = false;
+                        // Re-queue this header for the new SourceBuffer
+                        queueRef.current.unshift(item!);
+                        return;
+                    } catch (switchErr) {
+                        console.warn('[LIVE_DEBUG] Codec switch failed:', switchErr);
+                    }
+                }
                 hasAppendedInitRef.current = true;
-                console.log('[LIVE_DEBUG] Init segment appended, size=', bytes.byteLength);
+                console.log('[LIVE_DEBUG] Init segment appended, size=', bytes.byteLength, 'codec=', detectedCodec);
             }
 
             const copy = new Uint8Array(bytes.byteLength);
@@ -194,18 +232,20 @@ export function MediaStreamPlayer({ callId, wsUrl, token }: MediaStreamPlayerPro
 
             try {
                 const webmTypes = [
-                    'video/webm;codecs=opus,vp9',
-                    'video/webm;codecs=vp9,opus',
-                    'video/webm;codecs=opus,vp8',
                     'video/webm;codecs=vp8,opus',
+                    'video/webm;codecs=opus,vp8',
+                    'video/webm;codecs=vp9,opus',
+                    'video/webm;codecs=opus,vp9',
                     'video/webm;codecs=vp8,vorbis',
+                    'video/webm;codecs=vp8',
                     'video/webm;codecs=vp9',
-                    'video/webm;codecs=vp8'
+                    'video/webm',
                 ];
                 const mimeType = webmTypes.find((t) => MediaSource.isTypeSupported(t)) ?? webmTypes[0];
                 console.log('[LIVE_DEBUG] MediaStreamPlayer addSourceBuffer mimeType=', mimeType);
 
                 const sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+                (sourceBuffer as any).mimeType = mimeType; // store for codec detection
                 sourceBufferRef.current = sourceBuffer;
                 sourceBuffer.mode = 'segments';
 
