@@ -67,6 +67,7 @@ export function MediaStreamPlayer({ callId, wsUrl, token }: MediaStreamPlayerPro
 
         if (!sourceBuffer || !mediaSource || sourceBuffer.updating || queue.length === 0) return;
         if (video?.error) {
+            console.warn('[LIVE_DEBUG] Video element error:', video.error.code, video.error.message);
             sourceBufferDeadRef.current = true;
             setError('Playback error');
             return;
@@ -75,105 +76,83 @@ export function MediaStreamPlayer({ callId, wsUrl, token }: MediaStreamPlayerPro
         const item = queue.shift();
         if (!item) return;
         const { bytes, isHeader } = item;
-        if (bytes.length === 0) return;
+        if (bytes.length === 0) { processQueue(); return; }
 
-        const DEFER_HEADER_MS = 150;
-        const RETRY_PARSING_MS = 200;
-
+        // Skip invalid headers
         if (isHeader && !isWebMInit(bytes)) {
-            console.warn('[LIVE_DEBUG] Skipping invalid header chunk (not WebM EBML or too short)');
-            processQueue();
-            return;
-        }
-        if (!isHeader && !hasAppendedInitRef.current) {
-            queue.push(item);
+            console.warn('[LIVE_DEBUG] Skipping invalid header chunk');
             processQueue();
             return;
         }
 
-        if (isHeader && hasAppendedInitRef.current) {
-            if (!deferHeaderProcessRef.current) {
-                queue.unshift(item);
-                deferHeaderProcessRef.current = true;
-                setTimeout(() => {
-                    deferHeaderProcessRef.current = true;
-                    processQueue();
-                }, DEFER_HEADER_MS);
-                return;
-            }
-            deferHeaderProcessRef.current = false;
+        // Wait for init segment before appending data
+        if (!isHeader && !hasAppendedInitRef.current) {
+            // Drop data chunks that arrive before header instead of re-queuing (prevents infinite loop)
+            return;
         }
 
         try {
+            // On new header after init: reset timestampOffset to continue from current duration
             if (isHeader && hasAppendedInitRef.current) {
                 const duration = mediaSource.duration;
-                const offset = Number.isFinite(duration) && duration >= 0 ? duration : 0;
+                const offset = Number.isFinite(duration) && duration > 0 ? duration : 0;
                 try {
                     sourceBuffer.timestampOffset = offset;
-                    timestampOffsetRetryCountRef.current = 0;
-                } catch (offsetErr: unknown) {
-                    const offsetMsg = offsetErr instanceof Error ? offsetErr.message : String(offsetErr);
-                    if (offsetMsg.includes('PARSING_MEDIA_SEGMENT') && timestampOffsetRetryCountRef.current < 15) {
-                        timestampOffsetRetryCountRef.current += 1;
-                        queue.unshift(item);
-                        setTimeout(processQueue, RETRY_PARSING_MS);
-                        return;
-                    }
-                    timestampOffsetRetryCountRef.current = 0;
-                    throw offsetErr;
+                } catch {
+                    // If we can't set offset, just append anyway
                 }
             }
-            if (isHeader) hasAppendedInitRef.current = true;
+
+            if (isHeader) {
+                hasAppendedInitRef.current = true;
+                console.log('[LIVE_DEBUG] Init segment appended, size=', bytes.byteLength);
+            }
+
             const copy = new Uint8Array(bytes.byteLength);
             copy.set(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
             sourceBuffer.appendBuffer(copy.buffer);
+
+            // Try to play
             if (video?.paused && video.readyState >= 2 && !video.error) {
                 video.play().catch(() => {});
             }
             if (video && !playbackFallbackScheduledRef.current && hasAppendedInitRef.current) {
                 playbackFallbackScheduledRef.current = true;
-                const fallbackMs = 1200;
                 setTimeout(() => {
                     const v = videoRef.current;
-                    if (v && !v.paused && (v.readyState >= 2 || v.currentTime > 0)) {
+                    if (v && (v.readyState >= 2 || v.currentTime > 0)) {
+                        if (v.paused) v.play().catch(() => {});
                         setIsPlaying(true);
                     }
-                }, fallbackMs);
+                }, 2000);
             }
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes('removed from the parent media source') || msg.includes('error attribute is not null')) {
+            console.warn('[LIVE_DEBUG] appendBuffer error:', msg);
+
+            if (msg.includes('removed from the parent') || msg.includes('error attribute')) {
                 sourceBufferDeadRef.current = true;
                 sourceBufferRef.current = null;
                 setError('Playback error');
                 return;
             }
-            if (msg.includes('PARSING_MEDIA_SEGMENT') && timestampOffsetRetryCountRef.current < 15) {
-                timestampOffsetRetryCountRef.current += 1;
-                queue.unshift(item);
-                setTimeout(processQueue, RETRY_PARSING_MS);
-                return;
-            }
             if (msg.includes('QuotaExceeded') || msg.includes('QUOTA_EXCEEDED')) {
                 queue.unshift(item);
                 try {
-                    const buffered = sourceBuffer.buffered;
-                    const currentTime = video?.currentTime ?? 0;
-                    const end = Math.max(0, currentTime - BUFFER_KEEP_SECONDS);
-                    if (buffered.length > 0 && end > 0) {
+                    const ct = video?.currentTime ?? 0;
+                    const end = Math.max(0, ct - BUFFER_KEEP_SECONDS);
+                    if (sourceBuffer.buffered.length > 0 && end > 0) {
                         sourceBuffer.remove(0, end);
-                        console.log('[LIVE_DEBUG] QuotaExceeded: removing buffer [0,', end, '], will retry on updateend');
                     } else {
                         setTimeout(processQueue, 300);
                     }
-                } catch (removeErr) {
-                    console.warn('[LIVE_DEBUG] remove() failed after QuotaExceeded:', removeErr);
+                } catch {
                     setTimeout(processQueue, 500);
                 }
                 return;
             }
-            console.warn('[LIVE_DEBUG] appendBuffer failed:', err);
-            setError('Buffer error');
+            // For other errors (PARSING_MEDIA_SEGMENT etc), just skip the chunk and continue
+            setTimeout(processQueue, 100);
         }
     };
 

@@ -1763,9 +1763,23 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                             logger.error({ error: subErr }, '[LIVE_DEBUG] Failed to subscribe to live_summary');
                         }
 
-                        // Do NOT send cached media header on manager:join — it can be stale or from a different
-                        // codec (vp8 vs vp9), causing intermittent SourceBuffer/Playback errors when mixed with
-                        // live chunks. Client waits for the next init segment from the live stream (within ~5s).
+                        // Send cached media header so manager can start playback immediately
+                        // instead of waiting for the next init segment from the seller
+                        try {
+                            const cachedHeader = await redis.get(`call:${callId}:media_header`);
+                            if (cachedHeader && socket.readyState === WebSocket.OPEN) {
+                                const binaryHeader = encodeMediaChunkToBinary(cachedHeader as { chunk: string; isHeader?: boolean });
+                                if (binaryHeader) {
+                                    socket.send(binaryHeader);
+                                    logger.info(`📼 Sent cached media header to manager for call ${callId}`);
+                                }
+                            } else {
+                                logger.info(`📼 No cached media header for call ${callId}, manager waits for live header`);
+                            }
+                        } catch (headerErr) {
+                            logger.warn({ error: headerErr }, `📼 Failed to send cached header for call ${callId}`);
+                        }
+
                         logger.info(`👔 Manager ${authUser.id} joined call ${callId} (transcript + media)`);
 
                         if (socket.readyState === WebSocket.OPEN) {

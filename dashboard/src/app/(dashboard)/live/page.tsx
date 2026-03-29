@@ -48,6 +48,7 @@ export default function LivePage() {
     const [ws, setWs] = useState<WebSocket | null>(null);
     const [role, setRole] = useState<string | null>(null);
     const [token, setToken] = useState<string | null>(null);
+    const [sentWhispers, setSentWhispers] = useState<{ content: string; timestamp: number }[]>([]);
     const [managerUserId, setManagerUserId] = useState<string | null>(null);
     const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001') : 'http://localhost:3001';
     const WS_URL = apiBase.replace(/^http/, 'ws') + (apiBase.endsWith('/') ? '' : '/') + 'ws/manager';
@@ -155,6 +156,7 @@ export default function LivePage() {
 
         setTranscripts([]);
         setLiveSummary(null);
+        setSentWhispers([]);
         setWsStatus('connecting');
 
         let socket: WebSocket | null = null;
@@ -266,6 +268,7 @@ export default function LivePage() {
             type: 'manager:whisper',
             payload: { content: whisperMessage, urgency: 'high' }
         }));
+        setSentWhispers(prev => [...prev, { content: whisperMessage.trim(), timestamp: Date.now() }]);
         setWhisperMessage('');
     };
 
@@ -479,6 +482,28 @@ export default function LivePage() {
                                 </CardContent>
                             </Card>
 
+
+                            {/* Whispers enviados */}
+                            {sentWhispers.length > 0 && (
+                                <Card className="shrink-0 rounded-[24px] border shadow-none" style={CARD_STYLE}>
+                                    <CardHeader className="py-3 border-b border-white/10">
+                                        <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+                                            <MessageSquare className="w-4 h-4" style={{ color: NEON_PINK }} />
+                                            Mensagens enviadas ({sentWhispers.length})
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="max-h-40 overflow-y-auto p-3 space-y-2">
+                                        {sentWhispers.map((w, i) => (
+                                            <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-white/[0.03] border border-white/5">
+                                                <span className="text-[10px] font-mono text-gray-600 shrink-0 mt-0.5">
+                                                    {new Date(w.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                                <p className="text-sm text-gray-300">{w.content}</p>
+                                            </div>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             <Card className="shrink-0 rounded-[24px] border shadow-none" style={CARD_STYLE}>
                                 <CardContent className="">
