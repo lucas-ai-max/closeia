@@ -19,6 +19,8 @@ type Tab = 'coach' | 'transcript'
 export default function SessionLivePopup() {
   const [state, setState] = useState<WebSessionState | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('coach')
+  const [fontSizeOffset, setFontSizeOffset] = useState(0)
+  const fs = (base: number) => base + fontSizeOffset
   const channelRef = useRef<BroadcastChannel | null>(null)
   const coachEndRef = useRef<HTMLDivElement>(null)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
@@ -126,15 +128,29 @@ export default function SessionLivePopup() {
             {state.micAvailable ? 'mic' : 'mic_off'}
           </span>
         </div>
-        <img src="/logo-closer-white.png" alt="" className="h-4 opacity-50" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.03]">
+            <button
+              onClick={() => setFontSizeOffset(Math.max(-2, fontSizeOffset - 1))}
+              disabled={fontSizeOffset <= -2}
+              className="px-1 text-[10px] font-bold text-gray-500 hover:text-white disabled:opacity-30 transition-colors"
+            >A-</button>
+            <button
+              onClick={() => setFontSizeOffset(Math.min(4, fontSizeOffset + 1))}
+              disabled={fontSizeOffset >= 4}
+              className="px-1 text-[10px] font-bold text-gray-500 hover:text-white disabled:opacity-30 transition-colors"
+            >A+</button>
+          </div>
+          <img src="/logo-closer-white.png" alt="" className="h-4 opacity-50" />
+        </div>
       </div>
 
       {/* SPIN */}
       {state.currentSpinPhase && SPIN_PHASES[state.currentSpinPhase] && (
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5 bg-white/[0.02]">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-gray-600">SPIN:{state.currentSpinPhase}</span>
-            <span className="text-[11px] text-gray-400">{SPIN_PHASES[state.currentSpinPhase].label}</span>
+            <span className="font-bold uppercase tracking-wider text-gray-600" style={{ fontSize: fs(9) }}>SPIN:{state.currentSpinPhase}</span>
+            <span className="text-gray-400" style={{ fontSize: fs(11) }}>{SPIN_PHASES[state.currentSpinPhase].label}</span>
           </div>
           <div className="flex gap-1">
             {['S', 'P', 'I', 'N'].map(p => (
@@ -172,7 +188,7 @@ export default function SessionLivePopup() {
                 <p className="text-xs">{state.currentSpinPhase ? 'Analisando...' : 'Aguardando conversa...'}</p>
               </div>
             )}
-            {activeCoach.map(msg => <PopupCoachCard key={msg.id} msg={msg} onDismiss={dismiss} />)}
+            {activeCoach.map(msg => <PopupCoachCard key={msg.id} msg={msg} onDismiss={dismiss} fs={fs} />)}
             <div ref={coachEndRef} />
           </>
         ) : (
@@ -197,10 +213,10 @@ export default function SessionLivePopup() {
                 <div className={`max-w-[85%] rounded-lg px-2.5 py-1.5 ${
                   chunk.role === 'seller' ? 'bg-pink-500/10 border border-pink-500/15' : 'bg-white/[0.04] border border-white/5'
                 }`}>
-                  <p className="text-[10px] font-semibold mb-0.5" style={{ color: chunk.role === 'seller' ? NEON_PINK : '#555' }}>
+                  <p className="font-semibold mb-0.5" style={{ fontSize: fs(10), color: chunk.role === 'seller' ? NEON_PINK : '#555' }}>
                     {chunk.speaker}
                   </p>
-                  <p className="text-[12px] text-gray-300 leading-relaxed">{chunk.text}</p>
+                  <p className="text-gray-300 leading-relaxed" style={{ fontSize: fs(12) }}>{chunk.text}</p>
                 </div>
               </div>
             ))}
@@ -242,7 +258,7 @@ function PopupEndBar({ onStop }: { onStop: (r: CallResult) => void }) {
 }
 
 // ─── Coach Card (compact) ────────────────────────────
-function PopupCoachCard({ msg, onDismiss }: { msg: CoachMessage; onDismiss: (id: string) => void }) {
+function PopupCoachCard({ msg, onDismiss, fs }: { msg: CoachMessage; onDismiss: (id: string) => void; fs: (base: number) => number }) {
   const getIcon = () => {
     if (msg.type === 'manager-whisper' || msg.metadata?.source === 'manager') return <MessageSquare size={12} className="text-blue-400" />
     switch (msg.type) {
@@ -260,14 +276,14 @@ function PopupCoachCard({ msg, onDismiss }: { msg: CoachMessage; onDismiss: (id:
       <div className="flex items-start justify-between gap-1.5 mb-1">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {getIcon()}
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-600 truncate">{label}</span>
-          {msg.metadata?.phase ? <span className="text-[8px] font-bold text-gray-600 bg-white/5 px-1 py-0.5 rounded">{String(msg.metadata.phase)}</span> : null}
+          <span className="font-semibold uppercase tracking-wider text-gray-600 truncate" style={{ fontSize: fs(9) }}>{label}</span>
+          {msg.metadata?.phase ? <span className="font-bold text-gray-600 bg-white/5 px-1 py-0.5 rounded" style={{ fontSize: fs(8) }}>{String(msg.metadata.phase)}</span> : null}
         </div>
         <button onClick={() => onDismiss(msg.id)} className="p-0.5 text-gray-700 hover:text-gray-400"><X size={10} /></button>
       </div>
-      <h4 className="font-medium text-[12px] text-white leading-tight">{msg.title}</h4>
+      <h4 className="font-medium text-white leading-tight" style={{ fontSize: fs(12) }}>{msg.title}</h4>
       {msg.description && (
-        <p className="text-[11px] text-gray-400 leading-relaxed mt-0.5">
+        <p className="text-gray-400 leading-relaxed mt-0.5" style={{ fontSize: fs(11) }}>
           {msg.description.split(/(\*\*.*?\*\*)/).map((part, i) =>
             part.startsWith('**') && part.endsWith('**')
               ? <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>
@@ -276,19 +292,19 @@ function PopupCoachCard({ msg, onDismiss }: { msg: CoachMessage; onDismiss: (id:
         </p>
       )}
       {msg.type === 'objection' && msg.metadata?.objection ? (
-        <div className="mt-1.5 flex items-center gap-1 text-[10px] text-gray-400 bg-black/30 rounded px-2 py-1 border border-white/5">
+        <div className="mt-1.5 flex items-center gap-1 text-gray-400 bg-black/30 rounded px-2 py-1 border border-white/5" style={{ fontSize: fs(10) }}>
           <Target size={9} className="shrink-0 text-yellow-400" />
           <span className="text-gray-600">Objeção:</span> {String(msg.metadata.objection)}
         </div>
       ) : null}
       {msg.metadata?.suggested_response ? (
-        <div className="mt-1.5 text-[10px] bg-green-500/[0.08] rounded px-2 py-1 border border-green-500/20">
+        <div className="mt-1.5 bg-green-500/[0.08] rounded px-2 py-1 border border-green-500/20" style={{ fontSize: fs(10) }}>
           <div className="flex items-center gap-1 mb-0.5 font-semibold text-green-400"><MessageCircle size={9} />Resposta</div>
           <p className="text-gray-300 leading-relaxed">{String(msg.metadata.suggested_response)}</p>
         </div>
       ) : null}
       {msg.metadata?.suggested_question ? (
-        <div className="mt-1.5 text-[10px] bg-white/[0.03] rounded px-2 py-1 border border-white/5">
+        <div className="mt-1.5 bg-white/[0.03] rounded px-2 py-1 border border-white/5" style={{ fontSize: fs(10) }}>
           <div className="flex items-center gap-1 mb-0.5 font-semibold text-gray-500"><Lightbulb size={9} />Pergunta</div>
           <p className="text-gray-300 leading-relaxed font-medium">{String(msg.metadata.suggested_question)}</p>
         </div>
