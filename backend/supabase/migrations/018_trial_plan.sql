@@ -14,7 +14,7 @@ BEGIN
   RETURNING id INTO org_id;
 
   INSERT INTO public.profiles (id, organization_id, name, role)
-  VALUES (new.id, org_id, COALESCE(new.raw_user_meta_data->>'full_name', 'New User'), 'ADMIN');
+  VALUES (new.id, org_id, COALESCE(new.raw_user_meta_data->>'full_name', 'New User'), 'MANAGER');
 
   -- Handle affiliate referral code if present
   ref_code := new.raw_user_meta_data->>'referral_code';
