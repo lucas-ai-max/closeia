@@ -67,11 +67,17 @@ export default function SessionPage() {
         setPipContainer(container)
         setPipOpen(true)
 
-        // Detect PiP close
-        pip.addEventListener('pagehide', () => {
-          pipWindowRef.current = null
-          setPipContainer(null)
-          setPipOpen(false)
+        // Detect PiP close — use 'unload' instead of 'pagehide' because
+        // pagehide fires on focus loss / rapid clicks, causing false closes
+        pip.addEventListener('unload', () => {
+          // Double-check the window is actually closed before cleaning up
+          setTimeout(() => {
+            if (!pipWindowRef.current || pipWindowRef.current.closed) {
+              pipWindowRef.current = null
+              setPipContainer(null)
+              setPipOpen(false)
+            }
+          }, 100)
         })
 
         return
