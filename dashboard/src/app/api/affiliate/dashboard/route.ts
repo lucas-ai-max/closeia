@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       0
     )
 
-    const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://helpseller.app'
+    const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://helpcloser.app'
 
     return NextResponse.json({
       affiliate_id: affiliate.id,

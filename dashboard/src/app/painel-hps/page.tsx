@@ -93,7 +93,7 @@ export default function AdminPage() {
                                 onChange={e => { setLoginUser(e.target.value); setLoginError(false) }}
                                 className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 outline-none transition-colors"
                                 style={{ backgroundColor: '#111', border: `1px solid ${loginError ? '#ff4444' : 'rgba(255,255,255,0.08)'}` }}
-                                placeholder="admin@helpseller.app"
+                                placeholder="admin@helpcloser.app"
                                 autoFocus
                             />
                         </div>

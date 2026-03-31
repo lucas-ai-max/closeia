@@ -229,7 +229,7 @@ export default function AffiliateCadastroPage() {
       {/* Footer */}
       <footer className="w-full px-6 py-8 border-t border-white/5">
         <p className="text-center text-sm text-[#666]">
-          &copy; 2026 HelpCloser &middot; helpseller.app
+          &copy; 2026 HelpCloser &middot; helpcloser.app
         </p>
       </footer>
     </div>

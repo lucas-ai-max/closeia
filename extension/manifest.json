@@ -14,7 +14,7 @@
     "https://meet.google.com/*",
     "https://*.zoom.us/*",
     "https://app.zoom.us/*",
-    "https://helpseller.app/*"
+    "https://helpcloser.app/*"
   ],
   "background": {
     "service_worker": "src/background/index.ts",

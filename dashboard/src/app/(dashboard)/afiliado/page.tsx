@@ -151,7 +151,7 @@ export default function AffiliateDashboardPage() {
 
   async function handleCopyLink() {
     if (!dashboardData) return
-    const link = `https://helpseller.app/register?ref=${dashboardData.affiliate.code}`
+    const link = `https://helpcloser.app/register?ref=${dashboardData.affiliate.code}`
     await navigator.clipboard.writeText(link)
     setCopied(true)
     toast.success('Link copiado!')
@@ -226,7 +226,7 @@ export default function AffiliateDashboardPage() {
     { label: 'Saldo Disponivel', value: formatCurrency(stats.available_balance_cents), icon: Wallet, color: NEON_GREEN },
   ]
 
-  const referralLink = `https://helpseller.app/register?ref=${affiliate.code}`
+  const referralLink = `https://helpcloser.app/register?ref=${affiliate.code}`
   const canPayout = stats.available_balance_cents >= 5000
 
   return (
