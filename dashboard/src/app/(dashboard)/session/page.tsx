@@ -1,12 +1,10 @@
 'use client'
 
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { useWebSession } from '@/hooks/use-web-session'
 import { SessionConfigForm } from '@/components/session/session-config'
 import { SessionPanel } from '@/components/session/session-panel'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
-import { PipPopupContent } from '@/components/session/pip-popup-content'
 import type { SessionConfig } from '@/hooks/use-web-session'
 
 const NEON_PINK = '#ff007a'
@@ -15,78 +13,23 @@ const PIP_HEIGHT = 700
 
 export default function SessionPage() {
   const { state, start, stop, dismissCoachMessage, reset } = useWebSession()
-  const pipWindowRef = useRef<Window | null>(null)
-  const [pipContainer, setPipContainer] = useState<HTMLElement | null>(null)
   const [pipOpen, setPipOpen] = useState(false)
-  const fallbackPopupRef = useRef<Window | null>(null)
+  const popupRef = useRef<Window | null>(null)
+  const checkRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Cleanup PiP on unmount
+  // Cleanup popup on unmount
   useEffect(() => {
     return () => {
-      if (pipWindowRef.current) {
-        try { pipWindowRef.current.close() } catch {}
+      if (checkRef.current) clearInterval(checkRef.current)
+      if (popupRef.current && !popupRef.current.closed) {
+        try { popupRef.current.close() } catch {}
       }
     }
   }, [])
 
   const openPip = useCallback(async () => {
-    // Try Document Picture-in-Picture API first (always-on-top)
-    if ('documentPictureInPicture' in window) {
-      try {
-        const pip = await (window as any).documentPictureInPicture.requestWindow({
-          width: PIP_WIDTH,
-          height: PIP_HEIGHT,
-        })
-        pipWindowRef.current = pip
-
-        // Copy stylesheets to PiP window
-        const styles = document.querySelectorAll('style, link[rel="stylesheet"]')
-        styles.forEach(s => {
-          try { pip.document.head.appendChild(s.cloneNode(true)) } catch {}
-        })
-
-        // Add base styles
-        const baseStyle = pip.document.createElement('style')
-        baseStyle.textContent = `
-          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-          body { background: #0a0a0a; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
-          ::-webkit-scrollbar { width: 4px; }
-          ::-webkit-scrollbar-track { background: transparent; }
-          ::-webkit-scrollbar-thumb { background: ${NEON_PINK}40; border-radius: 4px; }
-          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-          @keyframes spin { to { transform: rotate(360deg); } }
-          .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-          .animate-spin { animation: spin 1s linear infinite; }
-        `
-        pip.document.head.appendChild(baseStyle)
-
-        // Create container for React portal
-        const container = pip.document.createElement('div')
-        container.id = 'pip-root'
-        pip.document.body.appendChild(container)
-        setPipContainer(container)
-        setPipOpen(true)
-
-        // Detect PiP close — use 'unload' instead of 'pagehide' because
-        // pagehide fires on focus loss / rapid clicks, causing false closes
-        pip.addEventListener('unload', () => {
-          // Double-check the window is actually closed before cleaning up
-          setTimeout(() => {
-            if (!pipWindowRef.current || pipWindowRef.current.closed) {
-              pipWindowRef.current = null
-              setPipContainer(null)
-              setPipOpen(false)
-            }
-          }, 100)
-        })
-
-        return
-      } catch {
-        // PiP API failed, fall through to window.open
-      }
-    }
-
-    // Fallback: regular popup
+    // Use window.open popup — stable across all browsers
+    // Document PiP API was removed because it closes on focus changes and rapid clicks
     const left = window.screenX + window.outerWidth - PIP_WIDTH - 40
     const top = window.screenY + 80
     const popup = window.open(
@@ -94,28 +37,25 @@ export default function SessionPage() {
       'helpcloser-session',
       `popup=yes,width=${PIP_WIDTH},height=${PIP_HEIGHT},left=${left},top=${top},resizable=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no`
     )
-    fallbackPopupRef.current = popup
+    popupRef.current = popup
     setPipOpen(true)
 
-    const check = setInterval(() => {
+    if (checkRef.current) clearInterval(checkRef.current)
+    checkRef.current = setInterval(() => {
       if (!popup || popup.closed) {
-        clearInterval(check)
-        fallbackPopupRef.current = null
+        if (checkRef.current) clearInterval(checkRef.current)
+        popupRef.current = null
         setPipOpen(false)
       }
     }, 500)
   }, [])
 
   const closePip = useCallback(() => {
-    if (pipWindowRef.current) {
-      try { pipWindowRef.current.close() } catch {}
-      pipWindowRef.current = null
-      setPipContainer(null)
+    if (checkRef.current) clearInterval(checkRef.current)
+    if (popupRef.current && !popupRef.current.closed) {
+      try { popupRef.current.close() } catch {}
     }
-    if (fallbackPopupRef.current && !fallbackPopupRef.current.closed) {
-      fallbackPopupRef.current.close()
-    }
-    fallbackPopupRef.current = null
+    popupRef.current = null
     setPipOpen(false)
   }, [])
 
@@ -125,7 +65,6 @@ export default function SessionPage() {
   }, [pipOpen, openPip, closePip])
 
   const handleStart = useCallback(async (config: SessionConfig) => {
-    // Open PiP first, then start session
     await openPip()
     start(config)
   }, [start, openPip])
@@ -180,16 +119,6 @@ export default function SessionPage() {
           onReset={handleReset}
         />
       </div>
-
-      {/* Render into PiP window via portal */}
-      {pipContainer && createPortal(
-        <PipPopupContent
-          state={state}
-          onDismiss={dismissCoachMessage}
-          onStop={stop}
-        />,
-        pipContainer
-      )}
     </div>
   )
 }
