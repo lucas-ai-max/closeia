@@ -3,12 +3,13 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 /**
- * OAuth callback: troca o code (Google, etc.) por sessão e redireciona para o app.
- * Necessário para login com Google funcionar.
+ * Auth callback: troca o code por sessão e redireciona.
+ * Handles OAuth (Google), magic links, and password recovery.
  */
 export async function GET(request: Request) {
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get('code')
+    const type = requestUrl.searchParams.get('type')
 
     if (code) {
         const cookieStore = await cookies()
@@ -17,6 +18,11 @@ export async function GET(request: Request) {
         if (error) {
             return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin))
         }
+    }
+
+    // Password recovery flow -> redirect to reset password page
+    if (type === 'recovery') {
+        return NextResponse.redirect(new URL('/reset-password', requestUrl.origin))
     }
 
     return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
