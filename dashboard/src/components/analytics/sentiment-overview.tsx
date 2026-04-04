@@ -58,7 +58,7 @@ export function SentimentOverview({ data }: { data: SentimentDistribution }) {
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '12px' }}
-                    formatter={(v: number) => [`${v} (${Math.round(v / total * 100)}%)`, '']}
+                    formatter={(v: number | undefined) => [`${v ?? 0} (${Math.round((v ?? 0) / total * 100)}%)`, '']}
                   />
                 </PieChart>
               </ResponsiveContainer>

@@ -48,7 +48,7 @@ export function PainPointsCloud({ data }: { data: PainPointAggregate[] }) {
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '12px' }}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ''}
-                  formatter={(v: number) => [v, 'ocorrências']}
+                  formatter={(v: number | undefined) => [v ?? 0, 'ocorrências']}
                 />
                 <Bar
                   dataKey="count"
