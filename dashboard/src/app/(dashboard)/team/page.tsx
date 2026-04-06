@@ -44,9 +44,10 @@ export default function TeamPage() {
 
   // Plan limits
   const { plan, limits, usage, canAddSeller, loading: planLoading } = usePlanLimits()
-  const sellerCount = members.filter(m => m.role === 'SELLER').length
-  const isAtSellerLimit = limits.maxSellers !== -1 && sellerCount >= limits.maxSellers
-  const isNearSellerLimit = limits.maxSellers !== -1 && sellerCount >= limits.maxSellers - 1 && sellerCount < limits.maxSellers
+  // Count all members except the current user (owner) — prevents bypass by promoting sellers to manager
+  const memberCount = members.filter(m => m.id !== currentUserId).length
+  const isAtSellerLimit = limits.maxSellers !== -1 && memberCount >= limits.maxSellers
+  const isNearSellerLimit = limits.maxSellers !== -1 && memberCount >= limits.maxSellers - 1 && memberCount < limits.maxSellers
 
   // Clear feedback after 4s
   useEffect(() => {
@@ -313,8 +314,8 @@ export default function TeamPage() {
               }
             </p>
             <p className="text-xs text-gray-500">
-              {sellerCount} de {limits.maxSellers} vendedores no plano {plan}
-              {!isAtSellerLimit && ` (${limits.maxSellers - sellerCount} restante${limits.maxSellers - sellerCount > 1 ? 's' : ''})`}
+              {memberCount} de {limits.maxSellers} membros no plano {plan}
+              {!isAtSellerLimit && ` (${limits.maxSellers - memberCount} restante${limits.maxSellers - memberCount > 1 ? 's' : ''})`}
             </p>
           </div>
           {isAtSellerLimit && (
