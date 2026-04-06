@@ -13,6 +13,7 @@ import { CoachingAlerts } from '@/components/analytics/coaching-alerts'
 import { SentimentOverview } from '@/components/analytics/sentiment-overview'
 import { AdherenceOverview } from '@/components/analytics/adherence-overview'
 import { PainPointsCloud } from '@/components/analytics/pain-points-cloud'
+import { FinancialImpactCard } from '@/components/analytics/financial-impact'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useManagerAnalytics } from '@/hooks/use-manager-analytics'
 import type { AnalyticsPeriod } from '@/types/analytics'
@@ -91,7 +92,7 @@ export default function AnalyticsPage() {
   }
 
   // ── MANAGER / ADMIN VIEW ──
-  const { kpis, pipeline, temperature, sentiment, sellers, coachingAlerts, painPoints, adherence, monthlyData, weeklyData } = data
+  const { kpis, pipeline, temperature, sentiment, sellers, coachingAlerts, painPoints, adherence, monthlyData, weeklyData, financial, coachingAlertDetails, temperatureDetails, pipelineDetails, sellerDetails, painPointDetails } = data
 
   return (
     <div className="space-y-6" suppressHydrationWarning>
@@ -164,18 +165,21 @@ export default function AnalyticsPage() {
           {/* Row 2: Pipeline + Temperature */}
           <div className="grid gap-4 md:grid-cols-7">
             <div className="col-span-4">
-              <PipelineFunnelCard data={pipeline} />
+              <PipelineFunnelCard data={pipeline} details={pipelineDetails} />
             </div>
             <div className="col-span-3">
-              <TemperatureGauge data={temperature} />
+              <TemperatureGauge data={temperature} details={temperatureDetails} />
             </div>
           </div>
 
+          {/* Row 2.5: Financial Impact (only shows if data exists) */}
+          <FinancialImpactCard data={financial} />
+
           {/* Row 3: Coaching Alerts */}
-          <CoachingAlerts alerts={coachingAlerts} />
+          <CoachingAlerts alerts={coachingAlertDetails} />
 
           {/* Row 4: Seller Performance Matrix */}
-          <SellerPerformanceMatrix sellers={sellers} />
+          <SellerPerformanceMatrix sellers={sellerDetails} />
 
           {/* Row 5: Monthly Chart + Sentiment */}
           <div className="grid gap-4 md:grid-cols-7 items-stretch">
@@ -195,7 +199,7 @@ export default function AnalyticsPage() {
           {/* Row 6: Pain Points + Adherence */}
           <div className="grid gap-4 md:grid-cols-7 items-stretch">
             <div className="col-span-4 flex flex-col">
-              <PainPointsCloud data={painPoints} />
+              <PainPointsCloud data={painPointDetails} />
             </div>
             <div className="col-span-3 flex flex-col">
               <AdherenceOverview data={adherence} />

@@ -67,6 +67,54 @@ export interface ScriptAdherenceData {
   sellers: { fullName: string; avgAdherence: number; callCount: number }[]
 }
 
+// Drill-down detail for individual calls
+export interface CallDetail {
+  callId: string
+  sellerName: string
+  leadName: string
+  date: string
+  durationMin: number
+  adherenceScore: number | null
+  sentiment: string | null
+  result: string | null
+  temperature: string | null
+  scriptName: string | null
+  lossReason: string | null
+  painPoints: string[]
+}
+
+// Extended coaching alert with call details
+export interface CoachingAlertDetail extends CoachingAlert {
+  scriptName: string | null
+  recentCalls: { date: string; score: number; callId: string }[]
+}
+
+// Temperature with lead details
+export interface TemperatureDetail {
+  level: 'frio' | 'morno' | 'quente' | 'fechando'
+  leads: { leadName: string; sellerName: string; date: string; callId: string }[]
+}
+
+// Pipeline with call details
+export interface PipelineDetail {
+  stage: 'converted' | 'followUp' | 'lost' | 'unknown'
+  calls: { leadName: string; sellerName: string; date: string; callId: string; daysSince: number; lossReason: string | null }[]
+}
+
+// Pain point with conversion correlation
+export interface PainPointDetail {
+  pain: string
+  count: number
+  converted: number
+  lost: number
+}
+
+// Seller with recent calls for drill-down
+export interface SellerDetail extends SellerPerformanceRow {
+  recentCalls: { date: string; adherence: number | null; result: string | null; callId: string }[]
+  trendUp: boolean | null
+}
+
 export interface ManagerAnalyticsData {
   kpis: AnalyticsKPIs
   pipeline: PipelineFunnel
@@ -79,4 +127,10 @@ export interface ManagerAnalyticsData {
   adherence: ScriptAdherenceData
   monthlyData: { name: string; total: number }[]
   weeklyData: { day: string; total: number }[]
+  // Drill-down data
+  coachingAlertDetails: CoachingAlertDetail[]
+  temperatureDetails: TemperatureDetail[]
+  pipelineDetails: PipelineDetail[]
+  sellerDetails: SellerDetail[]
+  painPointDetails: PainPointDetail[]
 }

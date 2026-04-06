@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { SellerPerformanceRow } from '@/types/analytics'
+import type { SellerDetail } from '@/types/analytics'
 
 const CARD_STYLE = { backgroundColor: '#1e1e1e', borderColor: 'rgba(255,255,255,0.05)' }
 const NEON_GREEN = '#00ff94'
@@ -24,9 +24,10 @@ function metricColor(value: number, thresholds: [number, number]) {
   return NEON_PINK
 }
 
-export function SellerPerformanceMatrix({ sellers }: { sellers: SellerPerformanceRow[] }) {
+export function SellerPerformanceMatrix({ sellers }: { sellers: SellerDetail[] }) {
   const [sortKey, setSortKey] = useState<SortKey>('totalCalls')
   const [asc, setAsc] = useState(false)
+  const [expandedSeller, setExpandedSeller] = useState<string | null>(null)
 
   const sorted = [...sellers].sort((a, b) => {
     const diff = a[sortKey] - b[sortKey]
@@ -78,10 +79,12 @@ export function SellerPerformanceMatrix({ sellers }: { sellers: SellerPerformanc
               <tbody>
                 {sorted.map((s, i) => {
                   const sent = sentimentLabel(s.avgSentimentScore)
+                  const isExpanded = expandedSeller === s.userId
                   return (
-                    <tr
+                    <><tr
                       key={s.userId}
-                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                      onClick={() => setExpandedSeller(isExpanded ? null : s.userId)}
                     >
                       {/* Rank */}
                       <td className="py-3 pl-1">
@@ -93,16 +96,22 @@ export function SellerPerformanceMatrix({ sellers }: { sellers: SellerPerformanc
                         }`}>{i + 1}</span>
                       </td>
 
-                      {/* Name + coaching flag */}
+                      {/* Name + coaching flag + trend */}
                       <td className="py-3">
                         <div className="flex items-center gap-2">
                           <span className="text-white font-medium">{s.fullName}</span>
+                          {s.trendUp !== null && (
+                            <span className="text-[10px]" style={{ color: s.trendUp ? NEON_GREEN : NEON_PINK }}>
+                              {s.trendUp ? '↑' : '↓'}
+                            </span>
+                          )}
                           {s.needsCoaching && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold"
                               style={{ backgroundColor: 'rgba(255,138,0,0.15)', color: NEON_ORANGE }}>
                               atenção
                             </span>
                           )}
+                          <span className="text-[9px] text-gray-600">{isExpanded ? '▲' : '▼'}</span>
                         </div>
                       </td>
 
@@ -150,6 +159,30 @@ export function SellerPerformanceMatrix({ sellers }: { sellers: SellerPerformanc
                         )}
                       </td>
                     </tr>
+                    {isExpanded && s.recentCalls && s.recentCalls.length > 0 && (
+                      <tr key={`${s.userId}-detail`} className="border-b border-white/5">
+                        <td colSpan={9} className="px-4 py-3" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Últimas calls</p>
+                          <div className="flex gap-2">
+                            {s.recentCalls.map((call, ci) => (
+                              <div key={ci} className="flex-1 rounded-lg border border-white/5 p-2 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                <p className="text-[10px] text-gray-600">{call.date}</p>
+                                <p className="text-sm font-bold mt-0.5" style={{
+                                  color: call.adherence != null ? metricColor(call.adherence, [40, 70]) : '#555'
+                                }}>
+                                  {call.adherence != null ? `${call.adherence}%` : '—'}
+                                </p>
+                                <p className="text-[9px] mt-0.5" style={{
+                                  color: call.result === 'CONVERTED' ? NEON_GREEN : call.result === 'LOST' ? NEON_PINK : '#666'
+                                }}>
+                                  {call.result === 'CONVERTED' ? 'Convertido' : call.result === 'LOST' ? 'Perdido' : call.result === 'FOLLOW_UP' ? 'Follow-up' : '—'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}</>
                   )
                 })}
               </tbody>

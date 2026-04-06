@@ -7,7 +7,12 @@ import type {
   ManagerAnalyticsData,
   SellerPerformanceRow,
   CoachingAlert,
+  CoachingAlertDetail,
   PainPointAggregate,
+  PainPointDetail,
+  TemperatureDetail,
+  PipelineDetail,
+  SellerDetail,
 } from '@/types/analytics'
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -48,6 +53,11 @@ const EMPTY: ManagerAnalyticsData = {
   adherence: { teamAverage: 0, sellers: [] },
   monthlyData: [],
   weeklyData: [],
+  coachingAlertDetails: [],
+  temperatureDetails: [],
+  pipelineDetails: [],
+  sellerDetails: [],
+  painPointDetails: [],
 }
 
 export function useManagerAnalytics(orgId: string | null, period: AnalyticsPeriod) {
@@ -71,8 +81,9 @@ export function useManagerAnalytics(orgId: string | null, period: AnalyticsPerio
         supabase
           .from('calls')
           .select(`
-            id, user_id, started_at, ended_at, duration_seconds,
+            id, user_id, started_at, ended_at, duration_seconds, script_id,
             user:profiles!user_id(full_name),
+            script:scripts!calls_script_relationship(name),
             summary:call_summaries(
               script_adherence_score, lead_sentiment, result, raw_analysis
             )
@@ -158,6 +169,15 @@ export function useManagerAnalytics(orgId: string | null, period: AnalyticsPerio
       let financialAnnual = 0
       let financialDataCount = 0
       const painFreq: Record<string, number> = {}
+      // Drill-down collections
+      const tempDetails: Record<string, { leadName: string; sellerName: string; date: string; callId: string }[]> = {
+        frio: [], morno: [], quente: [], fechando: [],
+      }
+      const pipeDetails: Record<string, { leadName: string; sellerName: string; date: string; callId: string; daysSince: number; lossReason: string | null }[]> = {
+        converted: [], followUp: [], lost: [], unknown: [],
+      }
+      const painConversion: Record<string, { converted: number; lost: number }> = {}
+      const sellerCalls: Record<string, { date: string; adherence: number | null; result: string | null; callId: string }[]> = {}
 
       // Per-seller aggregation
       const byUser: Record<string, {
@@ -259,6 +279,45 @@ export function useManagerAnalytics(orgId: string | null, period: AnalyticsPerio
           u.durSec += Math.max(0, (new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()) / 1000)
           u.durCount++
         }
+
+        // ── Drill-down data collection ──
+        const sellerName = (call.user as any)?.full_name ?? 'Vendedor'
+        const scriptName = Array.isArray(call.script) ? call.script[0]?.name : (call.script as any)?.name ?? null
+        const leadName = raw?.lead_nome ?? raw?.lead_name ?? 'Lead'
+        const callDate = call.started_at ? new Date(call.started_at).toLocaleDateString('pt-BR') : ''
+        const daysSinceCall = call.started_at ? Math.floor((now.getTime() - new Date(call.started_at).getTime()) / 86400000) : 0
+
+        // Temperature drill-down
+        const termoKey = termo?.toLowerCase() as keyof typeof tempDetails
+        if (termoKey && tempDetails[termoKey]) {
+          tempDetails[termoKey].push({ leadName: String(leadName), sellerName, date: callDate, callId: call.id })
+        }
+
+        // Pipeline drill-down
+        const resultKey = summary?.result === 'CONVERTED' ? 'converted' : summary?.result === 'FOLLOW_UP' ? 'followUp' : summary?.result === 'LOST' ? 'lost' : 'unknown'
+        pipeDetails[resultKey].push({
+          leadName: String(leadName), sellerName, date: callDate, callId: call.id,
+          daysSince: daysSinceCall,
+          lossReason: resultKey === 'lost' ? (raw?.motivo_perda ?? raw?.loss_reason ?? null) : null,
+        })
+
+        // Pain point conversion correlation
+        if (Array.isArray(dores)) {
+          for (const dor of dores) {
+            const key = typeof dor === 'string' ? dor.trim() : ''
+            if (!key) continue
+            if (!painConversion[key]) painConversion[key] = { converted: 0, lost: 0 }
+            if (summary?.result === 'CONVERTED') painConversion[key].converted++
+            else if (summary?.result === 'LOST') painConversion[key].lost++
+          }
+        }
+
+        // Seller recent calls (keep last 5)
+        if (!sellerCalls[uid]) sellerCalls[uid] = []
+        sellerCalls[uid].push({
+          date: callDate, adherence: summary?.script_adherence_score ?? null,
+          result: summary?.result ?? null, callId: call.id,
+        })
       }
 
       // Build seller rows
@@ -328,6 +387,64 @@ export function useManagerAnalytics(orgId: string | null, period: AnalyticsPerio
       const decidedTotal = pipeline.converted + pipeline.followUp + pipeline.lost
       const realConversion = decidedTotal > 0 ? Math.round((pipeline.converted / decidedTotal) * 100) : 0
 
+      // ── Build drill-down data ──
+
+      // Coaching alert details with script name + recent low-adherence calls
+      const coachingAlertDetails: CoachingAlertDetail[] = coachingAlerts.map(alert => {
+        const userCalls = sellerCalls[alert.userId] ?? []
+        const lowCalls = userCalls
+          .filter(c => c.adherence !== null && c.adherence < 40)
+          .slice(-3)
+          .map(c => ({ date: c.date, score: c.adherence!, callId: c.callId }))
+        // Find most used script for this seller from calls
+        const sellerCallsData = calls.filter((c: any) => c.user_id === alert.userId)
+        const scriptNames = sellerCallsData
+          .map((c: any) => Array.isArray(c.script) ? c.script[0]?.name : (c.script as any)?.name)
+          .filter(Boolean)
+        const scriptName = scriptNames.length > 0 ? scriptNames[0] : null
+        return { ...alert, scriptName, recentCalls: lowCalls }
+      })
+
+      // Temperature details
+      const temperatureDetails: TemperatureDetail[] = (['frio', 'morno', 'quente', 'fechando'] as const).map(level => ({
+        level,
+        leads: tempDetails[level].slice(0, 10),
+      }))
+
+      // Pipeline details
+      const pipelineDetails: PipelineDetail[] = (['converted', 'followUp', 'lost', 'unknown'] as const).map(stage => ({
+        stage,
+        calls: pipeDetails[stage].sort((a, b) => a.daysSince - b.daysSince).slice(0, 15),
+      }))
+
+      // Seller details with recent calls + trend
+      const sellerDetails: SellerDetail[] = sellers.map(s => {
+        const recentCalls = (sellerCalls[s.userId] ?? []).slice(-5)
+        const half = Math.floor(recentCalls.length / 2)
+        let trendUp: boolean | null = null
+        if (recentCalls.length >= 4) {
+          const firstHalf = recentCalls.slice(0, half).filter(c => c.adherence != null)
+          const secondHalf = recentCalls.slice(half).filter(c => c.adherence != null)
+          if (firstHalf.length > 0 && secondHalf.length > 0) {
+            const avgFirst = firstHalf.reduce((s, c) => s + (c.adherence ?? 0), 0) / firstHalf.length
+            const avgSecond = secondHalf.reduce((s, c) => s + (c.adherence ?? 0), 0) / secondHalf.length
+            trendUp = avgSecond > avgFirst
+          }
+        }
+        return { ...s, recentCalls, trendUp }
+      })
+
+      // Pain point details with conversion correlation
+      const painPointDetails: PainPointDetail[] = Object.entries(painFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([pain, count]) => ({
+          pain,
+          count,
+          converted: painConversion[pain]?.converted ?? 0,
+          lost: painConversion[pain]?.lost ?? 0,
+        }))
+
       setData({
         kpis: {
           totalCalls: calls.length,
@@ -351,6 +468,11 @@ export function useManagerAnalytics(orgId: string | null, period: AnalyticsPerio
         adherence: { teamAverage: teamAdherence, sellers: adherenceSellers },
         monthlyData,
         weeklyData,
+        coachingAlertDetails,
+        temperatureDetails,
+        pipelineDetails,
+        sellerDetails,
+        painPointDetails,
       })
       setLoading(false)
     }
