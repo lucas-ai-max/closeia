@@ -541,15 +541,27 @@ export function useWebSession() {
         setState(prev => ({ ...prev, status: 'idle', error: null }))
         return
       }
+      // Cleanup any partial state from failed start
+      displayStreamRef.current?.getTracks().forEach(t => t.stop())
+      micStreamRef.current?.getTracks().forEach(t => t.stop())
+      displayStreamRef.current = null
+      micStreamRef.current = null
+      audioContextsRef.current.forEach(ctx => ctx.close().catch(() => {}))
+      audioContextsRef.current = []
+      if (wsRef.current) { try { wsRef.current.close() } catch {} wsRef.current = null }
+      if (durationIntervalRef.current) { clearInterval(durationIntervalRef.current); durationIntervalRef.current = null }
+
       // Friendly error messages
       let message = 'Erro ao iniciar sessão. Tente novamente.'
       if (err instanceof Error) {
         if (err.message === 'Invalid state' || err.name === 'InvalidStateError') {
-          message = 'Erro temporário. Recarregue a página e tente novamente.'
+          message = 'Conexão falhou. Clique em "Iniciar" novamente.'
         } else if (err.message.includes('sessão ativa') || err.message.includes('login')) {
           message = err.message
         } else if (err.message.includes('áudio')) {
           message = err.message
+        } else if (err.message.includes('WebSocket') || err.message.includes('connect')) {
+          message = 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.'
         }
       }
       setState(prev => ({ ...prev, status: 'error', error: message }))
