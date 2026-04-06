@@ -30,12 +30,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
-    // Security: reject events older than 5 minutes to prevent replay attacks
-    const eventAge = Math.floor(Date.now() / 1000) - event.created;
-    if (eventAge > 300) {
-      console.warn(`[WEBHOOK_STRIPE] Rejected stale event ${event.id} (age: ${eventAge}s)`);
-      return NextResponse.json({ error: 'Event too old' }, { status: 400 });
-    }
+    // Note: replay protection is handled by Stripe's signature verification
+    // (timestamp tolerance) + our event deduplication by event ID below.
+    // No additional age check needed — Stripe legitimately retries old events.
 
     const supabase = createAdminClient();
     const eventId = event.id;
