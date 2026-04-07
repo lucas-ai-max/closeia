@@ -72,7 +72,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
     description: 'Para times maiores com visibilidade completa.',
     features: [
       '10 vendedores',
-      '160h de calls/mês',
+      '200h de calls/mês',
       'Torre de comando ao vivo',
       'Manager Whisper',
       'Coaching IA em tempo real',

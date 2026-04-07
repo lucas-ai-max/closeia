@@ -219,7 +219,7 @@ const PLANS = [
     description: 'Para times maiores com visibilidade total em tempo real.',
     features: [
       '10 vendedores',
-      '160h de calls/mês (compartilhadas)',
+      '200h de calls/mês (compartilhadas)',
       'Torre de comando ao vivo',
       'Manager Whisper',
       'Coaching IA em tempo real',

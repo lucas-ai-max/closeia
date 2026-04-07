@@ -133,7 +133,7 @@ const PLAN_LIMITS: Record<PlanSlug, PlanLimits> = {
   },
   TEAM: {
     maxSellers: 10,
-    maxCallHoursPerMonth: 160,
+    maxCallHoursPerMonth: 200,
     extraHourCents: 800, // R$ 8/hora
     features: {
       coaching_ai: true,

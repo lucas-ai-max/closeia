@@ -34,7 +34,7 @@ const PLAN_HOURS: Record<string, number> = {
     TRIAL: 2,
     STARTER: 25,
     PRO: 70,
-    TEAM: 160,
+    TEAM: 200,
     ENTERPRISE: -1, // unlimited
 }
 
