@@ -35,7 +35,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
     trial: '7 dias grátis',
     features: [
       '2 vendedores',
-      '15h de calls/mês',
+      '25h de calls/mês',
       'Coaching IA em tempo real',
       'Detecção de objeções',
       'Indicador SPIN',
@@ -52,7 +52,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
     popular: true,
     features: [
       '5 vendedores',
-      '60h de calls/mês',
+      '70h de calls/mês',
       'Coaching IA em tempo real',
       'Histórico de chamadas',
       'Resumo pós-call',
@@ -72,7 +72,7 @@ const PLAN_DEFINITIONS: PlanDefinition[] = [
     description: 'Para times maiores com visibilidade completa.',
     features: [
       '10 vendedores',
-      '150h de calls/mês',
+      '160h de calls/mês',
       'Torre de comando ao vivo',
       'Manager Whisper',
       'Coaching IA em tempo real',

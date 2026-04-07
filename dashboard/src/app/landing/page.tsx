@@ -178,7 +178,7 @@ const PLANS = [
     trial: '7 dias grátis',
     features: [
       '2 vendedores',
-      '15h de calls/mês (compartilhadas)',
+      '25h de calls/mês (compartilhadas)',
       'Coaching IA em tempo real',
       'Detecção de objeções',
       'Indicador de fase SPIN',
@@ -197,7 +197,7 @@ const PLANS = [
     popular: true,
     features: [
       '5 vendedores',
-      '60h de calls/mês (compartilhadas)',
+      '70h de calls/mês (compartilhadas)',
       'Coaching IA em tempo real',
       'Histórico de chamadas',
       'Resumo automático pós-call',
@@ -219,7 +219,7 @@ const PLANS = [
     description: 'Para times maiores com visibilidade total em tempo real.',
     features: [
       '10 vendedores',
-      '150h de calls/mês (compartilhadas)',
+      '160h de calls/mês (compartilhadas)',
       'Torre de comando ao vivo',
       'Manager Whisper',
       'Coaching IA em tempo real',

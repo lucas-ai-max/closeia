@@ -61,7 +61,7 @@ const PLAN_LIMITS: Record<PlanSlug, PlanLimits> = {
   },
   TRIAL: {
     maxSellers: 1,
-    maxCallHoursPerMonth: 1, // 1 hora grátis (total, não renova)
+    maxCallHoursPerMonth: 2, // 2 horas grátis (total, não renova)
     extraHourCents: 0,
     features: {
       coaching_ai: true,
@@ -85,7 +85,7 @@ const PLAN_LIMITS: Record<PlanSlug, PlanLimits> = {
   },
   STARTER: {
     maxSellers: 2,
-    maxCallHoursPerMonth: 15,
+    maxCallHoursPerMonth: 25,
     extraHourCents: 1000, // R$ 10/hora
     features: {
       coaching_ai: true,
@@ -109,7 +109,7 @@ const PLAN_LIMITS: Record<PlanSlug, PlanLimits> = {
   },
   PRO: {
     maxSellers: 5,
-    maxCallHoursPerMonth: 60,
+    maxCallHoursPerMonth: 70,
     extraHourCents: 900, // R$ 9/hora
     features: {
       coaching_ai: true,
@@ -133,7 +133,7 @@ const PLAN_LIMITS: Record<PlanSlug, PlanLimits> = {
   },
   TEAM: {
     maxSellers: 10,
-    maxCallHoursPerMonth: 150,
+    maxCallHoursPerMonth: 160,
     extraHourCents: 800, // R$ 8/hora
     features: {
       coaching_ai: true,

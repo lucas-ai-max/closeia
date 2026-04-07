@@ -31,10 +31,10 @@ interface UserRow {
 // Plan hour limits
 const PLAN_HOURS: Record<string, number> = {
     FREE: 0,
-    TRIAL: 1,
-    STARTER: 15,
-    PRO: 60,
-    TEAM: 150,
+    TRIAL: 2,
+    STARTER: 25,
+    PRO: 70,
+    TEAM: 160,
     ENTERPRISE: -1, // unlimited
 }
 

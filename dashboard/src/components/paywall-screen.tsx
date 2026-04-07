@@ -23,20 +23,20 @@ const QUICK_PLANS: readonly QuickPlan[] = [
     name: 'Starter',
     price: 'R$ 397/mês',
     trial: '7 dias grátis',
-    highlight: '2 vendedores · 15h de calls',
+    highlight: '2 vendedores · 25h de calls',
   },
   {
     slug: 'PRO',
     name: 'Pro',
     price: 'R$ 897/mês',
-    highlight: '5 vendedores · 60h de calls',
+    highlight: '5 vendedores · 70h de calls',
     isPopular: true,
   },
   {
     slug: 'TEAM',
     name: 'Team',
     price: 'R$ 1.997/mês',
-    highlight: '10 vendedores · 150h de calls',
+    highlight: '10 vendedores · 160h de calls',
   },
 ] as const
 
