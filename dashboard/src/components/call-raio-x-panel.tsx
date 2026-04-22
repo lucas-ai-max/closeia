@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
     Calendar,
@@ -14,6 +15,7 @@ import {
     Zap,
     Target,
     MessageSquare,
+    Download,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { CallRaioXTabs, FlatAnalysis } from './call-raio-x-tabs';
@@ -114,6 +116,9 @@ function formatTimestamp(ts?: string | number): string {
 
 
 export function CallRaioXPanel({ call, objections, loading, error }: CallRaioXPanelProps) {
+    const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfError, setPdfError] = useState<string | null>(null);
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center flex-1 p-8">
@@ -206,11 +211,26 @@ export function CallRaioXPanel({ call, objections, loading, error }: CallRaioXPa
 
     const coachName = call.coach?.name || (call.summary?.raw_analysis as any)?.coach_name;
 
+    const handleDownloadPdf = async () => {
+        if (!analysisData) return;
+        setPdfLoading(true);
+        setPdfError(null);
+        try {
+            const { generateRaioXPdf } = await import('@/lib/pdf/raio-x-pdf');
+            await generateRaioXPdf(analysisData);
+        } catch (e) {
+            console.error('PDF generation failed:', e);
+            setPdfError('Não foi possível gerar o PDF. Tente novamente.');
+        } finally {
+            setPdfLoading(false);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full overflow-y-auto p-4 sm:p-5 space-y-4 scrollbar-dark">
 
-            {/* Coach Badge */}
-            {(coachName || true) && (
+            {/* Header row: Coach Badge + Download PDF */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 text-xs">
                     <span className="material-icons-outlined text-[14px] text-gray-500">psychology</span>
                     <span className="text-gray-400">Coach:</span>
@@ -222,6 +242,23 @@ export function CallRaioXPanel({ call, objections, loading, error }: CallRaioXPa
                         {coachName || 'SPIN Selling (Padrão)'}
                     </span>
                 </div>
+                <button
+                    onClick={handleDownloadPdf}
+                    disabled={!analysisData || pdfLoading}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110"
+                    style={{
+                        backgroundColor: 'rgba(255,0,122,0.1)',
+                        borderColor: 'rgba(255,0,122,0.3)',
+                        color: NEON_PINK,
+                    }}
+                    title={!analysisData ? 'Aguardando análise da IA' : 'Baixar relatório em PDF'}
+                >
+                    <Download className="w-3.5 h-3.5" />
+                    {pdfLoading ? 'Gerando...' : 'Baixar PDF'}
+                </button>
+            </div>
+            {pdfError && (
+                <p className="text-xs text-red-400 -mt-2">{pdfError}</p>
             )}
 
             {/* Recording Player - unified video with mixed audio */}
